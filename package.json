@@ -1,0 +1,19 @@
+{
+  "name": "liberty-espace-voyageurs",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Espace voyageurs dynamique multi-logements pour Conciergerie Liberty.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "mysql2": "^3.22.5",
+    "qrcode": "^1.5.4"
+  }
+}
