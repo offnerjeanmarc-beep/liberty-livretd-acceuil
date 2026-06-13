@@ -1,6 +1,5 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { DatabaseSync } = require("node:sqlite");
 const mysql = require("mysql2/promise");
 
 const DATA_DIR = path.join(__dirname, "data");
@@ -54,6 +53,7 @@ async function createDatabase() {
   }
 
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  const { DatabaseSync } = require("node:sqlite");
   const sqlitePath = databaseUrl.startsWith("sqlite:")
     ? databaseUrl.slice("sqlite:".length)
     : SQLITE_PATH;

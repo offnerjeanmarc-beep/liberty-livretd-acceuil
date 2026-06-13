@@ -105,6 +105,7 @@ OPENAI_MODEL=gpt-5.5
 - activer HTTPS et cookies sécurisés en production
 - compléter les informations société/hébergeur dans les pages légales
 - vérifier les textes RGPD avec le conseil juridique de Liberty
+- suivre [docs/cpanel-deployment.md](docs/cpanel-deployment.md) pour le déploiement cPanel
 
 ## Arrêt demandé
 
