@@ -58,7 +58,10 @@ async function columnExists(table, column) {
   assertIdentifier(table);
   assertIdentifier(column);
   if (db.dialect === "mysql") {
-    const rows = await all(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [column]);
+    const rows = await all(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+      [table, column],
+    );
     return rows.length > 0;
   }
   return (await all(`PRAGMA table_info(${table})`)).some((item) => item.name === column);
