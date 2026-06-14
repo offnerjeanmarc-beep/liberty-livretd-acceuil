@@ -9,6 +9,7 @@ const { createDatabase } = require("./database");
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const DB_PATH = path.join(DATA_DIR, "liberty.sqlite");
+const UPLOADS_DIR = path.join(ROOT, "assets", "uploads");
 const PORT = Number(process.env.PORT || 4173);
 const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
 const SESSION_SECRET = process.env.SESSION_SECRET || "local-liberty-dev-secret";
@@ -20,6 +21,7 @@ const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 let db;
 
 async function run(sql, params = []) {
@@ -441,7 +443,6 @@ async function initDb() {
     await seedProperty("Appartement Cathédrale", "appartement-cathedrale", "CATHEDRALE2026", "Strasbourg", "Vue élégante au coeur du centre historique, à proximité de la Cathédrale.", {
       address: "12 Rue des Orfèvres, 67000 Strasbourg",
       gps: "48.5819, 7.7507",
-      parking: "Parking Gutenberg conseillé, 4 minutes à pied.",
       keybox: "Boîte à clés noire à droite de l'entrée, code transmis dans Mon Séjour.",
       checkin: "Arrivée autonome à partir de 16h00.",
       checkout: "Départ avant 10h00.",
@@ -450,7 +451,6 @@ async function initDb() {
     await seedProperty("Studio Gare", "studio-gare", "GARE2026", "Strasbourg", "Studio premium pensé pour les arrivées rapides et les séjours professionnels.", {
       address: "8 Rue du Maire Kuss, 67000 Strasbourg",
       gps: "48.5845, 7.7357",
-      parking: "Parking Wodli ou gare courte durée selon disponibilité.",
       keybox: "Coffret sécurisé dans le hall, code personnel à renseigner dans Mon Séjour.",
       checkin: "Arrivée autonome à partir de 15h00.",
       checkout: "Départ avant 11h00.",
@@ -459,7 +459,6 @@ async function initDb() {
     await seedProperty("Duplex Centre", "duplex-centre", "DUPLEX2026", "Strasbourg", "Duplex familial avec prestations complètes et accès direct aux bonnes adresses Liberty.", {
       address: "4 Rue des Serruriers, 67000 Strasbourg",
       gps: "48.5808, 7.7485",
-      parking: "Parking Austerlitz conseillé.",
       keybox: "Remise des clés via boîte sécurisée dans la cour intérieure.",
       checkin: "Arrivée autonome à partir de 16h00.",
       checkout: "Départ avant 10h00.",
@@ -535,7 +534,6 @@ function defaultPropertyData(overrides = {}) {
       messages: ["Bienvenue dans votre espace voyageurs Liberty.", "Toutes les informations essentielles sont centralisées ici."],
     },
     arrival: {
-      parking: overrides.parking || "Parking à compléter dans l'administration.",
       keybox: overrides.keybox || "Procédure de remise des clés à compléter.",
       checkin: overrides.checkin || "Arrivée à partir de 16h00.",
       video: "Lien vidéo tutoriel à ajouter.",
@@ -681,6 +679,49 @@ function normalizeWifi(data, property = {}) {
   };
 }
 
+function uniqueList(items) {
+  return [...new Set((items || []).map((item) => String(item || "").trim()).filter(Boolean))];
+}
+
+function galleryPhotosFor(data, coverImage = "") {
+  return uniqueList([
+    ...(Array.isArray(data.galleryPhotos) ? data.galleryPhotos : []),
+    ...(Array.isArray(data.photos) ? data.photos : []),
+    ...(Array.isArray(data.directBooking?.photos) ? data.directBooking.photos : []),
+    coverImage,
+  ]);
+}
+
+function uploadExtension(file) {
+  const ext = path.extname(file.filename || "").toLowerCase();
+  const allowed = new Map([
+    [".jpg", "jpg"],
+    [".jpeg", "jpg"],
+    [".png", "png"],
+    [".webp", "webp"],
+    [".gif", "gif"],
+  ]);
+  if (allowed.has(ext)) return allowed.get(ext);
+  const byType = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  return byType[file.contentType] || "";
+}
+
+function safeUploadBaseName(filename) {
+  const base = path.basename(filename || "photo", path.extname(filename || ""))
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return base || "photo";
+}
+
 function mapsUrl(address, gps = "") {
   const query = address || gps || "";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -758,14 +799,72 @@ function isAdminAuthenticated(req) {
 }
 
 async function readBody(req) {
+  return (await readRawBody(req)).toString("utf8");
+}
+
+async function readRawBody(req, maxBytes = 25 * 1024 * 1024) {
+  const length = Number(req.headers["content-length"] || 0);
+  if (length > maxBytes) {
+    const error = new Error("Fichier trop volumineux");
+    error.statusCode = 413;
+    throw error;
+  }
   const chunks = [];
-  for await (const chunk of req) chunks.push(chunk);
-  return Buffer.concat(chunks).toString("utf8");
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBytes) {
+      const error = new Error("Fichier trop volumineux");
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 async function readForm(req) {
   const body = await readBody(req);
   return Object.fromEntries(new URLSearchParams(body));
+}
+
+async function readMultipartForm(req) {
+  const type = req.headers["content-type"] || "";
+  const boundary = type.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[1] || type.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[2];
+  if (!boundary) throw new Error("Formulaire d'import invalide");
+  const buffer = await readRawBody(req);
+  const delimiter = Buffer.from(`--${boundary}`);
+  const headerSeparator = Buffer.from("\r\n\r\n");
+  const fields = {};
+  const files = [];
+  let cursor = buffer.indexOf(delimiter);
+
+  while (cursor !== -1) {
+    const next = buffer.indexOf(delimiter, cursor + delimiter.length);
+    if (next === -1) break;
+    let part = buffer.slice(cursor + delimiter.length, next);
+    cursor = next;
+    if (part.slice(0, 2).toString() === "--") continue;
+    if (part.slice(0, 2).toString() === "\r\n") part = part.slice(2);
+    if (part.slice(-2).toString() === "\r\n") part = part.slice(0, -2);
+
+    const headerEnd = part.indexOf(headerSeparator);
+    if (headerEnd === -1) continue;
+    const headerText = part.slice(0, headerEnd).toString("utf8");
+    const content = part.slice(headerEnd + headerSeparator.length);
+    const disposition = headerText.match(/content-disposition:\s*form-data;([^\r\n]+)/i)?.[1] || "";
+    const name = disposition.match(/name="([^"]+)"/)?.[1] || "";
+    const filename = disposition.match(/filename="([^"]*)"/)?.[1] || "";
+    const contentType = headerText.match(/content-type:\s*([^\r\n]+)/i)?.[1]?.trim() || "";
+    if (!name) continue;
+    if (filename) {
+      files.push({ name, filename, contentType, content });
+    } else {
+      fields[name] = content.toString("utf8");
+    }
+  }
+
+  return { fields, files };
 }
 
 async function readJsonBody(req) {
@@ -810,6 +909,7 @@ function serveStatic(req, res, pathname) {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".webp": "image/webp",
+    ".gif": "image/gif",
     ".svg": "image/svg+xml",
   };
   res.writeHead(200, {
@@ -908,12 +1008,13 @@ function renderLegalPage(kind) {
 function renderPublicProperty(property) {
   const data = json(property.data_json, {});
   const direct = { ...(data.directBooking || {}), ...json(property.direct_booking_json, {}) };
+  const galleryPhotos = galleryPhotosFor(data, property.cover_image);
   const schema = {
     "@context": "https://schema.org",
     "@type": "LodgingBusiness",
     name: property.name,
     address: property.address,
-    image: property.cover_image,
+    image: galleryPhotos,
     url: `${BASE_URL}/logement/${property.slug}`,
   };
   return layout({
@@ -930,6 +1031,13 @@ function renderPublicProperty(property) {
             <a class="primary-button" href="/sejour/${escapeHtml(property.slug)}">Espace voyageurs</a>
             <a class="secondary-button" href="mailto:contact@conciergerie-liberty.fr?subject=${encodeURIComponent(`Réservation directe - ${property.name}`)}">${escapeHtml(direct.cta || "Demander une réservation")}</a>
           </div>
+        </div>
+      </section>
+      <section class="content-section">
+        <p class="eyebrow">Photos</p>
+        <h2>Galerie du logement</h2>
+        <div class="photo-gallery">
+          ${galleryPhotos.map((photo, index) => `<figure><img src="${escapeHtml(photo)}" alt="Photo ${index + 1} du logement ${escapeHtml(property.name)}" /><figcaption>Photo ${index + 1}</figcaption></figure>`).join("")}
         </div>
       </section>
       <section class="content-section">
@@ -1044,9 +1152,10 @@ async function renderTraveler(property, req) {
   const wifiQr = wifi.ssid ? await QRCode.toString(wifiPayload, { type: "svg", margin: 1, width: 180 }) : "";
   const itineraryUrl = mapsUrl(p.address, p.gps);
   const appleUrl = appleMapsUrl(p.address, p.gps);
+  const galleryPhotos = galleryPhotosFor(d, p.coverImage);
   const sharedPois = await all("SELECT * FROM city_pois WHERE lower(city) = lower(?) ORDER BY type, title", [p.city]);
   const sharedBonsPlans = sharedPois.filter((poi) => !["transport", "parking"].includes(poi.type));
-  const sharedTransports = sharedPois.filter((poi) => ["transport", "parking"].includes(poi.type));
+  const sharedTransports = sharedPois.filter((poi) => poi.type === "transport");
   const bonsPlans = uniqueCards([
     ...(city.bonsPlans || (city.restaurants || []).map((title) => ({ title, description: "Adresse recommandée par Liberty.", distance: "À proximité", address: `${title}, ${p.city}`, externalUrl: "" }))),
     ...sharedBonsPlans,
@@ -1065,6 +1174,7 @@ async function renderTraveler(property, req) {
         <a class="brand" href="#accueil"><span>Groupe Liberty</span><strong>Conciergerie Liberty</strong></a>
         <nav>
           <a href="#mon-sejour">Mon Séjour</a>
+          <a href="#galerie">Photos</a>
           <a href="#logement">Le Logement</a>
           <a href="#ville">Découvrir la Ville</a>
           <a href="#services">Services Liberty</a>
@@ -1096,6 +1206,14 @@ async function renderTraveler(property, req) {
           <div><span>${escapeHtml(d.departure?.checkout || "10h")}</span><p>Check-out</p></div>
         </section>
 
+        <section class="content-section" id="galerie">
+          <p class="eyebrow">Photos</p>
+          <h2>Galerie du logement</h2>
+          <div class="photo-gallery">
+            ${galleryPhotos.map((photo, index) => `<figure><img src="${escapeHtml(photo)}" alt="Photo ${index + 1} du logement ${escapeHtml(p.name)}" /><figcaption>Photo ${index + 1}</figcaption></figure>`).join("")}
+          </div>
+        </section>
+
         <section class="content-section" id="mon-sejour">
           <p class="eyebrow">Mon Séjour</p>
           <h2>Informations essentielles</h2>
@@ -1105,19 +1223,6 @@ async function renderTraveler(property, req) {
             ${card("Code d'accès", d.stay?.accessCode || "Transmis avant arrivée", "Sécurité")}
           </div>
           <div class="notice-list">${(d.stay?.messages || []).map((message) => `<p>${escapeHtml(message)}</p>`).join("")}</div>
-          <form class="crm-form" data-crm-form>
-            <div>
-              <span class="panel-label">Recevoir les avantages Liberty</span>
-              <p>Recevez votre code fidélité, les offres de réservation directe et les attentions utiles pour vos prochains séjours.</p>
-            </div>
-            <input name="firstName" placeholder="Prénom" autocomplete="given-name" />
-            <input name="email" type="email" placeholder="Email" autocomplete="email" />
-            <input name="phone" placeholder="Téléphone" autocomplete="tel" />
-            <input name="stayDates" placeholder="Dates de séjour" value="${escapeHtml(d.stay?.dates || "")}" />
-            <label class="consent-row"><input name="marketingConsent" type="checkbox" value="1" /> J'accepte de recevoir les offres et communications de Conciergerie Liberty.</label>
-            <button class="secondary-button compact" type="submit">Enregistrer mes informations</button>
-            <p class="form-message" data-crm-status></p>
-          </form>
         </section>
 
         <section class="content-section" id="arrivee">
@@ -1137,7 +1242,6 @@ async function renderTraveler(property, req) {
           <div class="info-grid">
             ${card("Adresse", p.address, "Localisation")}
             ${card("GPS", p.gps, "Coordonnées")}
-            ${card("Parking", d.arrival?.parking, "Accès")}
             ${card("Boîte à clés", d.arrival?.keybox, "Remise des clés")}
             ${card("Check-in", d.arrival?.checkin, "Horaire")}
             ${card("Tutoriel vidéo", d.arrival?.video, "Support")}
@@ -1247,6 +1351,24 @@ async function renderTraveler(property, req) {
             </form>
           </div>
         </section>
+
+        <section class="content-section" id="avantages-liberty">
+          <p class="eyebrow">Avantages Liberty</p>
+          <h2>Recevoir les avantages Liberty</h2>
+          <form class="crm-form" data-crm-form>
+            <div>
+              <span class="panel-label">Code fidélité et offres directes</span>
+              <p>Recevez votre code fidélité, les offres de réservation directe et les attentions utiles pour vos prochains séjours.</p>
+            </div>
+            <input name="firstName" placeholder="Prénom" autocomplete="given-name" />
+            <input name="email" type="email" placeholder="Email" autocomplete="email" />
+            <input name="phone" placeholder="Téléphone" autocomplete="tel" />
+            <input name="stayDates" placeholder="Dates de séjour" value="${escapeHtml(d.stay?.dates || "")}" />
+            <label class="consent-row"><input name="marketingConsent" type="checkbox" value="1" /> J'accepte de recevoir les offres et communications de Conciergerie Liberty.</label>
+            <button class="secondary-button compact" type="submit">Enregistrer mes informations</button>
+            <p class="form-message" data-crm-status></p>
+          </form>
+        </section>
       </main>
     </div>
     ${renderFooter()}`,
@@ -1350,10 +1472,19 @@ async function renderAdmin(req, message = "") {
 
 function renderEditProperty(property, message = "") {
   const parsedData = json(property.data_json, {});
-  const data = JSON.stringify(parsedData, null, 2);
+  const displayData = {
+    ...parsedData,
+    arrival: parsedData.arrival ? { ...parsedData.arrival } : parsedData.arrival,
+  };
+  if (displayData.arrival) delete displayData.arrival.parking;
+  const data = JSON.stringify(displayData, null, 2);
   const wifi = normalizeWifi(parsedData, property);
   const city = parsedData.city || {};
   const directBooking = json(property.direct_booking_json, parsedData.directBooking || {});
+  const galleryPhotos = galleryPhotosFor(parsedData, property.cover_image);
+  const photoPreview = galleryPhotos
+    .map((photo, index) => `<figure><img src="${escapeHtml(photo)}" alt="Photo ${index + 1} du logement" /><figcaption>${escapeHtml(photo)}</figcaption></figure>`)
+    .join("");
   return layout({
     title: `Modifier ${property.name} | Administration Liberty`,
     admin: true,
@@ -1369,6 +1500,15 @@ function renderEditProperty(property, message = "") {
           <p>Modifiez les informations opérationnelles sans toucher au code. Les données alimentent automatiquement l'espace voyageur et l'assistant IA.</p>
           ${message ? `<p class="success-message">${escapeHtml(message)}</p>` : ""}
         </section>
+        <section class="admin-panel">
+          <div class="panel-title"><h2>Photos du logement</h2><p>Importez une ou plusieurs images : elles sont ajoutees automatiquement a la galerie de ce logement.</p></div>
+          <form class="photo-upload-form" method="post" action="/admin/logements/${property.id}/photos" enctype="multipart/form-data">
+            ${csrfField("admin")}
+            <label>Importer des photos<input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
+            <button class="secondary-button compact" type="submit">Importer les photos</button>
+          </form>
+          <div class="admin-photo-grid">${photoPreview || `<p>Aucune photo de galerie pour le moment.</p>`}</div>
+        </section>
         <form class="admin-form edit-form" method="post" action="/admin/logements/${property.id}">
           ${csrfField("admin")}
           <label>Nom<input name="name" value="${escapeHtml(property.name)}" required /></label>
@@ -1380,7 +1520,6 @@ function renderEditProperty(property, message = "") {
           <label>Message de bienvenue<textarea name="welcome">${escapeHtml(property.welcome)}</textarea></label>
           <div class="admin-fieldset">
             <h2>Arrivée</h2>
-            <label>Parking<textarea name="arrival_parking">${escapeHtml(parsedData.arrival?.parking || "")}</textarea></label>
             <label>Boîte à clés<textarea name="arrival_keybox">${escapeHtml(parsedData.arrival?.keybox || "")}</textarea></label>
             <label>Check-in<input name="arrival_checkin" value="${escapeHtml(parsedData.arrival?.checkin || "")}" /></label>
             <label>Tutoriel vidéo<input name="arrival_video" value="${escapeHtml(parsedData.arrival?.video || "")}" /></label>
@@ -1434,13 +1573,18 @@ function renderEditProperty(property, message = "") {
 
 function buildAssistantContext(property) {
   const data = json(property.data_json, {});
+  const contextData = {
+    ...data,
+    arrival: data.arrival ? { ...data.arrival } : data.arrival,
+  };
+  if (contextData.arrival) delete contextData.arrival.parking;
   return [
     `Logement: ${property.name}`,
     `Ville: ${property.city}`,
     `Adresse: ${property.address}`,
     `GPS: ${property.gps}`,
     `Bienvenue: ${property.welcome}`,
-    `Données opérationnelles: ${JSON.stringify(data)}`,
+    `Données opérationnelles: ${JSON.stringify(contextData)}`,
   ].join("\n");
 }
 
@@ -1454,7 +1598,6 @@ function localAssistantReply(property, message) {
   if (lower.includes("clé") || lower.includes("cle") || lower.includes("boîte")) {
     return data.arrival?.keybox || "La procédure de remise des clés doit être complétée par Liberty.";
   }
-  if (lower.includes("parking")) return data.arrival?.parking || "Le parking doit être précisé par Liberty.";
   if (lower.includes("départ") || lower.includes("check-out")) return data.departure?.checkout || "Le départ est à confirmer.";
   if (lower.includes("adresse")) return `${property.address} (${property.gps}).`;
   if (haystack.includes(lower.slice(0, 16))) {
@@ -1560,6 +1703,54 @@ async function handleRequest(req, res) {
     );
     return redirect(res, "/admin?message=Logement créé");
   }
+  const photoUploadMatch = pathname.match(/^\/admin\/logements\/(\d+)\/photos$/);
+  if (photoUploadMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
+  if (photoUploadMatch && req.method === "POST") {
+    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(photoUploadMatch[1])]);
+    if (!property) return send(res, 404, "Logement introuvable");
+    let multipart;
+    try {
+      multipart = await readMultipartForm(req);
+    } catch (error) {
+      const status = error.statusCode || 400;
+      return send(res, status, renderEditProperty(property, error.message || "Import impossible."));
+    }
+    if (!verifyCsrf(multipart.fields.csrf, "admin")) {
+      return send(res, 403, renderEditProperty(property, "Session expiree. Rechargez la page."));
+    }
+
+    const uploaded = [];
+    const folder = slugify(property.slug || property.name);
+    const uploadDir = path.join(UPLOADS_DIR, folder);
+    fs.mkdirSync(uploadDir, { recursive: true });
+    for (const file of multipart.files.filter((item) => item.name === "photos" && item.content.length)) {
+      const extension = uploadExtension(file);
+      if (!extension) continue;
+      const baseName = safeUploadBaseName(file.filename);
+      const filename = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${baseName}.${extension}`;
+      const target = path.join(uploadDir, filename);
+      fs.writeFileSync(target, file.content);
+      uploaded.push(`/assets/uploads/${folder}/${filename}`);
+    }
+
+    if (!uploaded.length) {
+      return send(res, 400, renderEditProperty(property, "Aucune image valide n'a ete importee."));
+    }
+
+    const parsed = json(property.data_json, {});
+    parsed.galleryPhotos = uniqueList([...(parsed.galleryPhotos || []), ...uploaded]);
+    parsed.directBooking = parsed.directBooking || {};
+    parsed.directBooking.photos = uniqueList([...(parsed.directBooking.photos || []), ...uploaded]);
+    const shouldReplaceCover = !property.cover_image || property.cover_image === "/assets/liberty-hero.png";
+    await run("UPDATE properties SET cover_image = ?, data_json = ?, updated_at = ? WHERE id = ?", [
+      shouldReplaceCover ? uploaded[0] : property.cover_image,
+      JSON.stringify(parsed),
+      now(),
+      property.id,
+    ]);
+    return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${uploaded.length} photo(s) importee(s)`)}`);
+  }
+
   const editMatch = pathname.match(/^\/admin\/logements\/(\d+)$/);
   if (editMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
   if (editMatch && req.method === "GET") {
@@ -1577,11 +1768,11 @@ async function handleRequest(req, res) {
       parsed = JSON.parse(form.data_json || "{}");
       parsed.arrival = {
         ...(parsed.arrival || {}),
-        parking: form.arrival_parking || "",
         keybox: form.arrival_keybox || "",
         checkin: form.arrival_checkin || "",
         video: form.arrival_video || "",
       };
+      delete parsed.arrival.parking;
       parsed.departure = {
         ...(parsed.departure || {}),
         checkout: form.departure_checkout || "",

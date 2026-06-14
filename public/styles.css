@@ -729,6 +729,51 @@ select:focus {
   background: var(--white);
 }
 
+.photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--gray-100);
+}
+
+.photo-gallery figure,
+.admin-photo-grid figure {
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  background: var(--black);
+}
+
+.photo-gallery figure:first-child {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.photo-gallery img,
+.admin-photo-grid img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-gallery figure {
+  min-height: 260px;
+  aspect-ratio: 4 / 3;
+}
+
+.photo-gallery figcaption {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.8rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(10, 10, 10, 0.72);
+  color: var(--white);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .poi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1076,6 +1121,47 @@ select:focus {
   gap: 0.45rem;
 }
 
+.photo-upload-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: end;
+}
+
+.photo-upload-form label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--gray-100);
+}
+
+.admin-photo-grid figure {
+  min-height: 150px;
+  aspect-ratio: 4 / 3;
+}
+
+.admin-photo-grid figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  overflow: hidden;
+  padding: 0.45rem 0.55rem;
+  background: rgba(10, 10, 10, 0.72);
+  color: var(--white);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-photo-grid > p {
+  padding: 1rem;
+  background: var(--white);
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1161,9 +1247,16 @@ td span {
   .wifi-panel,
   .map-panel,
   .poi-grid,
+  .photo-gallery,
+  .admin-photo-grid,
   .stats-grid,
   .public-hero {
     grid-template-columns: 1fr;
+  }
+
+  .photo-gallery figure:first-child {
+    grid-column: auto;
+    grid-row: auto;
   }
 
   .gate-visual,
@@ -1193,6 +1286,7 @@ td span {
   .wifi-card,
   .chat-form,
   .grid-form,
+  .photo-upload-form,
   .crm-form {
     grid-template-columns: 1fr;
   }
