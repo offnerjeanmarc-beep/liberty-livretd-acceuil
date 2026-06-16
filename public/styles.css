@@ -717,6 +717,24 @@ select:focus {
   line-height: 1.7;
 }
 
+.arrival-summary-note {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 860px;
+  padding: clamp(1.15rem, 3vw, 1.6rem);
+  border: 1px solid var(--gray-100);
+  border-left: 2px solid var(--gold);
+  background: var(--cream);
+}
+
+.arrival-summary-note p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--gray-700);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
@@ -935,6 +953,60 @@ select:focus {
   border: 1px solid var(--gray-100);
   border-left: 2px solid var(--gold);
   background: var(--cream);
+}
+
+.arrival-overview-panel {
+  display: grid;
+  gap: clamp(1.25rem, 3vw, 1.8rem);
+  padding: clamp(1.6rem, 4vw, 2.6rem);
+  border: 1px solid var(--gray-100);
+  background: var(--cream);
+}
+
+.arrival-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(1.6rem, 4vw, 3rem);
+  align-items: end;
+}
+
+.arrival-overview-panel h3 {
+  margin: 0 0 clamp(1.2rem, 3vw, 1.8rem);
+  color: var(--black);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(2.35rem, 5vw, 4rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.arrival-overview-panel dl {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0;
+}
+
+.arrival-overview-panel dl div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.22fr) minmax(0, 0.78fr);
+  gap: 1rem;
+  align-items: baseline;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--gray-100);
+}
+
+.arrival-overview-panel dt {
+  color: var(--gold-dark);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.arrival-overview-panel dd {
+  margin: 0;
+  color: var(--gray-700);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.55;
 }
 
 .arrival-access-layout {
@@ -2039,6 +2111,15 @@ td span {
   .arrival-access-layout {
     grid-template-columns: 1fr;
     gap: 1.1rem;
+  }
+
+  .arrival-overview-layout,
+  .arrival-overview-panel dl div {
+    grid-template-columns: 1fr;
+  }
+
+  .arrival-overview-layout {
+    align-items: start;
   }
 
   .arrival-keybox-panel {

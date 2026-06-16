@@ -35,7 +35,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v32";
+const ASSET_VERSION = "20260616-arrival-unlock-v34";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
@@ -1863,7 +1863,6 @@ function layout({ title, body, scripts = "", admin = false, lang = "fr" }) {
       .app-shell[data-page]:not([data-page="mon-sejour"]) .traveler-hero,
       .app-shell[data-page]:not([data-page="mon-sejour"]) .metric-row { display: none; }
       .app-shell[data-page="mon-sejour"] #mon-sejour,
-      .app-shell[data-page="mon-sejour"] #arrivee,
       .app-shell[data-page="mon-sejour"] #depart,
       .app-shell[data-page="assistant"] #assistant,
       .app-shell[data-page="arrivee"] #arrivee,
@@ -2280,13 +2279,6 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
           <div><span>${escapeHtml(d.departure?.checkout || "10h")}</span><p>${escapeHtml(ui(currentLang, "checkout"))}</p></div>
         </section>
 
-        ${page === "arrivee" && arrivalUnlocked && arrivalInstructions ? `
-          <section class="arrival-prelude">
-            <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
-            <p>${escapeHtml(arrivalInstructions)}</p>
-          </section>
-        ` : ""}
-
         <section class="traveler-page-head">
           <div>
             <p class="eyebrow">${escapeHtml(activeMeta[0])}</p>
@@ -2322,28 +2314,41 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
             ${card(ui(currentLang, "guest"), d.stay?.guestName || ui(currentLang, "complete"), ui(currentLang, "stay"))}
             ${card(ui(currentLang, "dates"), d.stay?.dates || ui(currentLang, "complete"), "Réservation")}
           </div>
+          ${!arrivalUnlocked ? `
+            <div class="arrival-summary-note">
+              <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
+              <p>${escapeHtml(sectionText(currentLang, "lockedArrivalText"))}</p>
+              <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">${escapeHtml(sectionText(currentLang, "availableFrom"))} : ${escapeHtml(formatDateLabel(arrivalUnlock) || ui(currentLang, "confirm"))} <span>→</span></a>
+            </div>
+          ` : `
+            <div class="arrival-summary-note">
+              <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
+              <p>Les instructions d'arrivée sont disponibles dans la page Arrivée.</p>
+              <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">Voir les instructions <span>→</span></a>
+            </div>
+          `}
         </section>
 
         <section class="content-section" id="arrivee">
           <p class="eyebrow">${escapeHtml(ui(currentLang, "arrival"))}</p>
           <h2>${escapeHtml(sectionText(currentLang, "arrivalTitle"))}</h2>
-          <div class="map-panel">
-            <div>
-              <span class="panel-label">${escapeHtml(ui(currentLang, "address"))}</span>
-              <strong>${escapeHtml(p.address)}</strong>
-              <p>${escapeHtml(p.gps)}</p>
-            </div>
-            <div class="map-actions">
-              <a class="primary-button" href="${escapeHtml(itineraryUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="google_maps">${escapeHtml(ui(currentLang, "route"))}</a>
-              <a class="secondary-button" href="${escapeHtml(appleUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="apple_maps">${escapeHtml(ui(currentLang, "appleMaps"))}</a>
+          <div class="arrival-overview-panel">
+            <span class="panel-label">${escapeHtml(ui(currentLang, "arrival"))}</span>
+            <div class="arrival-overview-layout">
+              <div>
+                <h3>${escapeHtml(sectionText(currentLang, "arrivalTitle"))}</h3>
+                <dl>
+                  <div><dt>${escapeHtml(ui(currentLang, "address"))}</dt><dd>${escapeHtml(p.address)}</dd></div>
+                  ${p.gps ? `<div><dt>${escapeHtml(ui(currentLang, "gps"))}</dt><dd>${escapeHtml(p.gps)}</dd></div>` : ""}
+                  <div><dt>${escapeHtml(ui(currentLang, "checkin"))}</dt><dd>${escapeHtml(arrival.checkin || d.arrival?.checkin || ui(currentLang, "complete"))}</dd></div>
+                </dl>
+              </div>
+              <div class="map-actions">
+                <a class="primary-button" href="${escapeHtml(itineraryUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="google_maps">${escapeHtml(ui(currentLang, "route"))}</a>
+                <a class="secondary-button" href="${escapeHtml(appleUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="apple_maps">${escapeHtml(ui(currentLang, "appleMaps"))}</a>
+              </div>
             </div>
           </div>
-          <div class="info-grid">
-            ${card(ui(currentLang, "address"), p.address, "Localisation")}
-            ${card(ui(currentLang, "gps"), p.gps, ui(currentLang, "gps"))}
-            ${card(ui(currentLang, "checkin"), arrival.checkin, "Horaire")}
-          </div>
-          ${arrival.keybox ? arrivalKeyboxPanel(ui(currentLang, "keybox"), arrival.keybox, sectionText(currentLang, "accessSecure")) : ""}
           ${arrivalUnlocked ? `
             ${arrivalAccessPanel(sectionText(currentLang, "arrivalInstructionsTitle"), arrivalInstructions || DEFAULT_ARRIVAL_INSTRUCTIONS, sectionText(currentLang, "arrivalHint"), arrivalAccessMedia)}
           ` : `
