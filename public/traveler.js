@@ -15,6 +15,28 @@ const requestForm = document.querySelector("[data-request-form]");
 const crmForm = document.querySelector("[data-crm-form]");
 const appShell = document.querySelector(".app-shell");
 const slug = appShell?.dataset.slug;
+const stayMenu = document.querySelector(".stay-menu");
+const languageChoices = document.querySelectorAll("[data-lang-choice]");
+
+if (stayMenu) {
+  const mobileMenu = window.matchMedia("(max-width: 760px)");
+  const syncMenuState = () => {
+    stayMenu.open = !mobileMenu.matches;
+  };
+  syncMenuState();
+  if (mobileMenu.addEventListener) {
+    mobileMenu.addEventListener("change", syncMenuState);
+  } else if (mobileMenu.addListener) {
+    mobileMenu.addListener(syncMenuState);
+  }
+}
+
+languageChoices.forEach((choice) => {
+  choice.addEventListener("click", () => {
+    localStorage.setItem("liberty_lang", choice.dataset.langChoice);
+    document.cookie = `liberty_lang=${encodeURIComponent(choice.dataset.langChoice)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  });
+});
 
 const cookieBanner = document.querySelector("[data-cookie-banner]");
 const cookieAccept = document.querySelector("[data-cookie-accept]");
@@ -150,44 +172,3 @@ if (wifiPanel && "IntersectionObserver" in window) {
   }, { threshold: 0.5 });
   observer.observe(wifiPanel);
 }
-
-const mobileQuery = window.matchMedia("(max-width: 760px)");
-const accordionSections = Array.from(document.querySelectorAll(".content-section"));
-
-function setupAccordions() {
-  accordionSections.forEach((section, index) => {
-    if (section.querySelector(".accordion-toggle")) return;
-    const heading = section.querySelector("h2");
-    if (!heading) return;
-    const button = document.createElement("button");
-    button.className = "accordion-toggle";
-    button.type = "button";
-    button.textContent = heading.textContent;
-    button.setAttribute("aria-expanded", index < 2 ? "true" : "false");
-    heading.hidden = true;
-    heading.before(button);
-    if (index >= 2) section.classList.add("is-collapsed");
-    button.addEventListener("click", () => {
-      const collapsed = section.classList.toggle("is-collapsed");
-      button.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    });
-  });
-}
-
-function resetAccordions() {
-  accordionSections.forEach((section) => {
-    section.classList.remove("is-collapsed");
-    const heading = section.querySelector("h2");
-    const button = section.querySelector(".accordion-toggle");
-    if (heading) heading.hidden = false;
-    if (button) button.remove();
-  });
-}
-
-function syncAccordions() {
-  if (mobileQuery.matches) setupAccordions();
-  else resetAccordions();
-}
-
-syncAccordions();
-mobileQuery.addEventListener("change", syncAccordions);
