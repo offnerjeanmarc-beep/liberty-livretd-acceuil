@@ -1859,11 +1859,12 @@ select:focus {
 .admin-photo-grid figure {
   min-height: 150px;
   aspect-ratio: 4 / 3;
+  padding-bottom: 6.8rem;
 }
 
 .admin-photo-grid figcaption {
   position: absolute;
-  inset: auto 0 3.15rem;
+  inset: auto 0 6.8rem;
   overflow: hidden;
   padding: 0.45rem 0.55rem;
   background: rgba(10, 10, 10, 0.72);
@@ -1873,12 +1874,33 @@ select:focus {
   white-space: nowrap;
 }
 
-.photo-delete-form {
+.photo-admin-actions {
   position: absolute;
   inset: auto 0 0;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
   padding: 0.45rem;
   background: rgba(255, 255, 255, 0.94);
+}
+
+.photo-admin-actions form:last-child {
+  grid-column: 1 / -1;
+}
+
+.photo-admin-actions button {
+  width: 100%;
+  min-height: 2.2rem;
+  padding: 0.58rem 0.65rem;
+  font-size: 0.64rem;
+}
+
+.photo-admin-actions button:disabled {
+  border-color: var(--gray-300);
+  color: var(--gray-500);
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .danger-button {

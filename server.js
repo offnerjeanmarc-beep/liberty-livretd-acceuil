@@ -35,7 +35,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v31";
+const ASSET_VERSION = "20260616-arrival-unlock-v32";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
@@ -1469,6 +1469,17 @@ function galleryFigure(photo, alt, className = "") {
   return `<figure${className ? ` class="${escapeHtml(className)}"` : ""}><img src="${escapeHtml(photo)}" alt="${escapeHtml(alt)}" loading="lazy" /></figure>`;
 }
 
+function moveListItem(items, item, direction) {
+  const list = uniqueList(Array.isArray(items) ? items : []);
+  const index = list.findIndex((value) => String(value) === String(item));
+  const offset = direction === "up" ? -1 : direction === "down" ? 1 : 0;
+  const target = index + offset;
+  if (index < 0 || target < 0 || target >= list.length) return list;
+  const moved = [...list];
+  [moved[index], moved[target]] = [moved[target], moved[index]];
+  return moved;
+}
+
 function parseDateOnly(value) {
   const text = String(value || "").slice(0, 10);
   const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -2603,22 +2614,50 @@ async function renderEditProperty(property, message = "") {
     .map((photo, index) => `<figure>
       <img src="${escapeHtml(photo)}" alt="Photo ${index + 1} du logement" />
       <figcaption>${escapeHtml(photo)}</figcaption>
-      <form class="photo-delete-form" method="post" action="/admin/logements/${property.id}/photos/delete">
-        ${csrfField("admin")}
-        <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
-        <button class="secondary-button compact danger-button" type="submit">Supprimer</button>
-      </form>
+      <div class="photo-admin-actions">
+        <form method="post" action="/admin/logements/${property.id}/photos/reorder">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <input type="hidden" name="direction" value="up" />
+          <button class="secondary-button compact" type="submit"${index === 0 ? " disabled" : ""}>Monter</button>
+        </form>
+        <form method="post" action="/admin/logements/${property.id}/photos/reorder">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <input type="hidden" name="direction" value="down" />
+          <button class="secondary-button compact" type="submit"${index === galleryPhotos.length - 1 ? " disabled" : ""}>Descendre</button>
+        </form>
+        <form method="post" action="/admin/logements/${property.id}/photos/delete">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <button class="secondary-button compact danger-button" type="submit">Supprimer</button>
+        </form>
+      </div>
     </figure>`)
     .join("");
   const arrivalPhotoPreview = arrivalPhotos
     .map((photo, index) => `<figure>
       <img src="${escapeHtml(photo)}" alt="Photo d'arrivée ${index + 1}" />
       <figcaption>${escapeHtml(photo)}</figcaption>
-      <form class="photo-delete-form" method="post" action="/admin/logements/${property.id}/arrival-photos/delete">
-        ${csrfField("admin")}
-        <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
-        <button class="secondary-button compact danger-button" type="submit">Supprimer</button>
-      </form>
+      <div class="photo-admin-actions">
+        <form method="post" action="/admin/logements/${property.id}/arrival-photos/reorder">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <input type="hidden" name="direction" value="up" />
+          <button class="secondary-button compact" type="submit"${index === 0 ? " disabled" : ""}>Monter</button>
+        </form>
+        <form method="post" action="/admin/logements/${property.id}/arrival-photos/reorder">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <input type="hidden" name="direction" value="down" />
+          <button class="secondary-button compact" type="submit"${index === arrivalPhotos.length - 1 ? " disabled" : ""}>Descendre</button>
+        </form>
+        <form method="post" action="/admin/logements/${property.id}/arrival-photos/delete">
+          ${csrfField("admin")}
+          <input type="hidden" name="photo" value="${escapeHtml(photo)}" />
+          <button class="secondary-button compact danger-button" type="submit">Supprimer</button>
+        </form>
+      </div>
     </figure>`)
     .join("");
   const serviceCenter = parsedData.serviceCenter || {};
@@ -3147,6 +3186,54 @@ async function handleRequest(req, res) {
       property.id,
     ]);
     return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${uploaded.length} photo(s) d'arrivee importee(s)`)}`);
+  }
+
+  const photoReorderMatch = pathname.match(/^\/admin\/logements\/(\d+)\/photos\/reorder$/);
+  if (photoReorderMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
+  if (photoReorderMatch && req.method === "POST") {
+    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(photoReorderMatch[1])]);
+    if (!property) return send(res, 404, "Logement introuvable");
+    const form = await readForm(req);
+    if (!verifyCsrf(form.csrf, "admin")) {
+      return send(res, 403, await renderEditProperty(property, "Session expiree. Rechargez la page."));
+    }
+    const photo = String(form.photo || "").trim();
+    const direction = String(form.direction || "").trim();
+    const parsed = json(property.data_json, {});
+    const reordered = moveListItem(galleryPhotosFor(parsed, property.cover_image), photo, direction);
+    parsed.galleryPhotos = reordered;
+    parsed.directBooking = parsed.directBooking || {};
+    parsed.directBooking.photos = reordered;
+    const nextCover = reordered[0] || property.cover_image || "/assets/liberty-hero.png";
+    await run("UPDATE properties SET cover_image = ?, data_json = ?, updated_at = ? WHERE id = ?", [
+      nextCover,
+      JSON.stringify(parsed),
+      now(),
+      property.id,
+    ]);
+    return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent("Ordre des photos du logement mis a jour")}`);
+  }
+
+  const arrivalPhotoReorderMatch = pathname.match(/^\/admin\/logements\/(\d+)\/arrival-photos\/reorder$/);
+  if (arrivalPhotoReorderMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
+  if (arrivalPhotoReorderMatch && req.method === "POST") {
+    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(arrivalPhotoReorderMatch[1])]);
+    if (!property) return send(res, 404, "Logement introuvable");
+    const form = await readForm(req);
+    if (!verifyCsrf(form.csrf, "admin")) {
+      return send(res, 403, await renderEditProperty(property, "Session expiree. Rechargez la page."));
+    }
+    const photo = String(form.photo || "").trim();
+    const direction = String(form.direction || "").trim();
+    const parsed = json(property.data_json, {});
+    parsed.arrival = parsed.arrival || {};
+    parsed.arrival.photos = moveListItem(parsed.arrival.photos, photo, direction);
+    await run("UPDATE properties SET data_json = ?, updated_at = ? WHERE id = ?", [
+      JSON.stringify(parsed),
+      now(),
+      property.id,
+    ]);
+    return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent("Ordre des photos d'arrivee mis a jour")}`);
   }
 
   const photoDeleteMatch = pathname.match(/^\/admin\/logements\/(\d+)\/photos\/delete$/);
