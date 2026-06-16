@@ -35,7 +35,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v29";
+const ASSET_VERSION = "20260616-arrival-unlock-v31";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
@@ -452,63 +452,70 @@ const TRAVELER_SECTION_TEXT = {
     troubleshooting: "Dépannage manuel", procedures: "Procédures utiles du logement", assistance: "Assistance Liberty",
     arrivalPage: "Arrivée", arrivalHint: "Instructions d'accès", arrivalTitle: "Votre arrivée au logement",
     accessSecure: "Accès sécurisé au logement",
-    lockedArrivalTitle: "Instructions disponibles deux jours avant l'arrivée",
-    lockedArrivalText: "Pour votre sécurité, les informations détaillées d'accès, les photos et la vidéo seront débloquées automatiquement à la date prévue.",
-    unlockDate: "Date de déblocage", arrivalPhotos: "Photos d'arrivée", openVideo: "Ouvrir la vidéo",
+    arrivalInstructionsTitle: "Instructions d'arrivée",
+    lockedArrivalTitle: "Instructions d'arrivée",
+    lockedArrivalText: "Les instructions détaillées d'arrivée seront complétées et transmises par Liberty 2 jours avant votre arrivée afin de vous garantir un accès simple et une installation en toute sérénité. Les photos d'accès et le tutoriel vidéo apparaîtront également ici à cette date.",
+    unlockDate: "Date de déblocage", availableFrom: "Disponible à partir du", arrivalPhotos: "Photos d'arrivée", openVideo: "Ouvrir la vidéo",
     cancelledStayTitle: "Ce lien n'est plus actif", cancelledStayText: "Votre réservation semble annulée ou expirée. Contactez Conciergerie Liberty si vous pensez qu'il s'agit d'une erreur.",
   },
   en: {
     troubleshooting: "Manual troubleshooting", procedures: "Useful home procedures", assistance: "Liberty Assistance",
     arrivalPage: "Arrival", arrivalHint: "Access instructions", arrivalTitle: "Your arrival at the home",
     accessSecure: "Secure home access",
-    lockedArrivalTitle: "Instructions available two days before arrival",
-    lockedArrivalText: "For your security, detailed access information, photos and video will unlock automatically on the scheduled date.",
-    unlockDate: "Unlock date", arrivalPhotos: "Arrival photos", openVideo: "Open video",
+    arrivalInstructionsTitle: "Arrival instructions",
+    lockedArrivalTitle: "Arrival instructions",
+    lockedArrivalText: "Detailed arrival instructions will be completed and sent by Liberty 2 days before your arrival to ensure simple access and a smooth check-in. Access photos and the video tutorial will also appear here on that date.",
+    unlockDate: "Unlock date", availableFrom: "Available from", arrivalPhotos: "Arrival photos", openVideo: "Open video",
     cancelledStayTitle: "This link is no longer active", cancelledStayText: "Your booking appears to be cancelled or expired. Please contact Conciergerie Liberty if this seems wrong.",
   },
   de: {
     troubleshooting: "Manuelle Hilfe", procedures: "Nützliche Abläufe der Unterkunft", assistance: "Liberty Hilfe",
     arrivalPage: "Anreise", arrivalHint: "Zugangsinformationen", arrivalTitle: "Ihre Anreise zur Unterkunft",
     accessSecure: "Sicherer Zugang zur Unterkunft",
-    lockedArrivalTitle: "Informationen zwei Tage vor Anreise verfügbar",
-    lockedArrivalText: "Aus Sicherheitsgründen werden detaillierte Zugangsinformationen, Fotos und Video automatisch zum vorgesehenen Datum freigeschaltet.",
-    unlockDate: "Freischaltdatum", arrivalPhotos: "Anreisefotos", openVideo: "Video öffnen",
+    arrivalInstructionsTitle: "Anreiseinformationen",
+    lockedArrivalTitle: "Anreiseinformationen",
+    lockedArrivalText: "Die detaillierten Anreiseinformationen werden von Liberty 2 Tage vor Ihrer Anreise ergänzt und übermittelt, damit der Zugang einfach und Ihre Ankunft entspannt bleibt. Die Zugangsfotos und das Video-Tutorial erscheinen ebenfalls an diesem Datum.",
+    unlockDate: "Freischaltdatum", availableFrom: "Verfügbar ab", arrivalPhotos: "Anreisefotos", openVideo: "Video öffnen",
     cancelledStayTitle: "Dieser Link ist nicht mehr aktiv", cancelledStayText: "Ihre Buchung scheint storniert oder abgelaufen zu sein. Kontaktieren Sie Conciergerie Liberty, falls dies nicht stimmt.",
   },
   es: {
     troubleshooting: "Solución manual", procedures: "Procedimientos útiles del alojamiento", assistance: "Asistencia Liberty",
     arrivalPage: "Llegada", arrivalHint: "Instrucciones de acceso", arrivalTitle: "Su llegada al alojamiento",
     accessSecure: "Acceso seguro al alojamiento",
-    lockedArrivalTitle: "Instrucciones disponibles dos días antes de la llegada",
-    lockedArrivalText: "Por seguridad, la información detallada de acceso, las fotos y el vídeo se desbloquearán automáticamente en la fecha prevista.",
-    unlockDate: "Fecha de desbloqueo", arrivalPhotos: "Fotos de llegada", openVideo: "Abrir vídeo",
+    arrivalInstructionsTitle: "Instrucciones de llegada",
+    lockedArrivalTitle: "Instrucciones de llegada",
+    lockedArrivalText: "Las instrucciones detalladas de llegada serán completadas y enviadas por Liberty 2 días antes de su llegada para garantizar un acceso sencillo y una instalación tranquila. Las fotos de acceso y el videotutorial también aparecerán aquí en esa fecha.",
+    unlockDate: "Fecha de desbloqueo", availableFrom: "Disponible a partir del", arrivalPhotos: "Fotos de llegada", openVideo: "Abrir vídeo",
     cancelledStayTitle: "Este enlace ya no está activo", cancelledStayText: "Su reserva parece cancelada o caducada. Contacte con Conciergerie Liberty si cree que es un error.",
   },
   it: {
     troubleshooting: "Assistenza manuale", procedures: "Procedure utili dell'alloggio", assistance: "Assistenza Liberty",
     arrivalPage: "Arrivo", arrivalHint: "Istruzioni di accesso", arrivalTitle: "Il tuo arrivo nell'alloggio",
     accessSecure: "Accesso sicuro all'alloggio",
-    lockedArrivalTitle: "Istruzioni disponibili due giorni prima dell'arrivo",
-    lockedArrivalText: "Per sicurezza, le informazioni dettagliate di accesso, le foto e il video saranno sbloccati automaticamente alla data prevista.",
-    unlockDate: "Data di sblocco", arrivalPhotos: "Foto di arrivo", openVideo: "Apri il video",
+    arrivalInstructionsTitle: "Istruzioni di arrivo",
+    lockedArrivalTitle: "Istruzioni di arrivo",
+    lockedArrivalText: "Le istruzioni dettagliate di arrivo saranno completate e inviate da Liberty 2 giorni prima del tuo arrivo, per garantirti un accesso semplice e un'accoglienza serena. Anche le foto di accesso e il video tutorial appariranno qui in quella data.",
+    unlockDate: "Data di sblocco", availableFrom: "Disponibile dal", arrivalPhotos: "Foto di arrivo", openVideo: "Apri il video",
     cancelledStayTitle: "Questo link non è più attivo", cancelledStayText: "La prenotazione sembra annullata o scaduta. Contatta Conciergerie Liberty se pensi sia un errore.",
   },
   "zh-CN": {
     troubleshooting: "人工故障处理", procedures: "住宿实用流程", assistance: "Liberty 协助",
     arrivalPage: "抵达", arrivalHint: "入住指引", arrivalTitle: "您的住宿抵达信息",
     accessSecure: "安全进入住宿",
-    lockedArrivalTitle: "抵达前两天开放说明",
-    lockedArrivalText: "为保障安全，详细进入信息、照片和视频将在预定日期自动开放。",
-    unlockDate: "开放日期", arrivalPhotos: "抵达照片", openVideo: "打开视频",
+    arrivalInstructionsTitle: "抵达说明",
+    lockedArrivalTitle: "抵达说明",
+    lockedArrivalText: "详细抵达说明将由 Liberty 在您抵达前 2 天补充并发送，以确保您可以顺利进入并安心入住。入口照片和视频教程也会在该日期显示在这里。",
+    unlockDate: "开放日期", availableFrom: "开放日期", arrivalPhotos: "抵达照片", openVideo: "打开视频",
     cancelledStayTitle: "此链接已失效", cancelledStayText: "您的预订似乎已取消或过期。如有疑问，请联系 Conciergerie Liberty。",
   },
   ar: {
     troubleshooting: "دعم يدوي", procedures: "إجراءات مفيدة للمسكن", assistance: "مساعدة Liberty",
     arrivalPage: "الوصول", arrivalHint: "تعليمات الدخول", arrivalTitle: "وصولك إلى المسكن",
     accessSecure: "دخول آمن إلى المسكن",
-    lockedArrivalTitle: "التعليمات متاحة قبل الوصول بيومين",
-    lockedArrivalText: "لأمانك، سيتم فتح معلومات الدخول التفصيلية والصور والفيديو تلقائياً في التاريخ المحدد.",
-    unlockDate: "تاريخ الفتح", arrivalPhotos: "صور الوصول", openVideo: "فتح الفيديو",
+    arrivalInstructionsTitle: "تعليمات الوصول",
+    lockedArrivalTitle: "تعليمات الوصول",
+    lockedArrivalText: "ستُستكمل تعليمات الوصول التفصيلية وتُرسل من Liberty قبل وصولك بيومين لضمان دخول سهل وإقامة مطمئنة. ستظهر صور الوصول والفيديو الإرشادي هنا أيضاً في ذلك التاريخ.",
+    unlockDate: "تاريخ الفتح", availableFrom: "متاح ابتداءً من", arrivalPhotos: "صور الوصول", openVideo: "فتح الفيديو",
     cancelledStayTitle: "هذا الرابط لم يعد نشطاً", cancelledStayText: "يبدو أن الحجز ملغى أو منتهي. تواصل مع Conciergerie Liberty إذا كان ذلك خطأ.",
   },
 };
@@ -2042,6 +2049,27 @@ function card(title, text, meta = "") {
   return `<article class="data-card">${meta ? `<span>${escapeHtml(meta)}</span>` : ""}<strong>${escapeHtml(title)}</strong>${textBlock(text)}</article>`;
 }
 
+function arrivalAccessPanel(title, text, meta = "", media = "") {
+  return `<article class="arrival-access-panel">
+    ${meta ? `<span class="panel-label">${escapeHtml(meta)}</span>` : ""}
+    <div class="arrival-access-layout">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="arrival-access-copy">${textBlock(text)}</div>
+    </div>
+    ${media ? `<div class="arrival-access-media">${media}</div>` : ""}
+  </article>`;
+}
+
+function arrivalKeyboxPanel(title, text, meta = "") {
+  return `<article class="arrival-keybox-panel">
+    ${meta ? `<span class="panel-label">${escapeHtml(meta)}</span>` : ""}
+    <div>
+      <h3>${escapeHtml(title)}</h3>
+      <div>${textBlock(text)}</div>
+    </div>
+  </article>`;
+}
+
 function textBlock(value) {
   const text = String(value || "").trim();
   if (!text) return "<p></p>";
@@ -2133,6 +2161,15 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
   const arrivalUnlock = arrivalUnlockDate(guestStay);
   const arrivalPhotos = uniqueList(Array.isArray(arrival.photos) ? arrival.photos : []);
   const arrivalVideo = renderArrivalVideo(arrival.video, currentLang);
+  const arrivalAccessMedia = [
+    arrivalPhotos.length ? `
+      <div class="arrival-access-media-block">
+        <p class="eyebrow">${escapeHtml(sectionText(currentLang, "arrivalPhotos"))}</p>
+        <div class="arrival-photo-grid">${arrivalPhotos.map((photo, index) => galleryFigure(photo, `${sectionText(currentLang, "arrivalPhotos")} ${index + 1}`)).join("")}</div>
+      </div>
+    ` : "",
+    arrivalVideo ? `<div class="arrival-access-media-block"><p class="eyebrow">${escapeHtml(ui(currentLang, "video"))}</p>${arrivalVideo}</div>` : "",
+  ].filter(Boolean).join("");
   const services = d.services || [];
   const city = d.city || {};
   const guides = city.guides || [];
@@ -2279,38 +2316,32 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
         <section class="content-section" id="arrivee">
           <p class="eyebrow">${escapeHtml(ui(currentLang, "arrival"))}</p>
           <h2>${escapeHtml(sectionText(currentLang, "arrivalTitle"))}</h2>
+          <div class="map-panel">
+            <div>
+              <span class="panel-label">${escapeHtml(ui(currentLang, "address"))}</span>
+              <strong>${escapeHtml(p.address)}</strong>
+              <p>${escapeHtml(p.gps)}</p>
+            </div>
+            <div class="map-actions">
+              <a class="primary-button" href="${escapeHtml(itineraryUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="google_maps">${escapeHtml(ui(currentLang, "route"))}</a>
+              <a class="secondary-button" href="${escapeHtml(appleUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="apple_maps">${escapeHtml(ui(currentLang, "appleMaps"))}</a>
+            </div>
+          </div>
+          <div class="info-grid">
+            ${card(ui(currentLang, "address"), p.address, "Localisation")}
+            ${card(ui(currentLang, "gps"), p.gps, ui(currentLang, "gps"))}
+            ${card(ui(currentLang, "checkin"), arrival.checkin, "Horaire")}
+          </div>
+          ${arrival.keybox ? arrivalKeyboxPanel(ui(currentLang, "keybox"), arrival.keybox, sectionText(currentLang, "accessSecure")) : ""}
           ${arrivalUnlocked ? `
-            <div class="map-panel">
-              <div>
-                <span class="panel-label">${escapeHtml(ui(currentLang, "address"))}</span>
-                <strong>${escapeHtml(p.address)}</strong>
-                <p>${escapeHtml(p.gps)}</p>
-              </div>
-              <div class="map-actions">
-                <a class="primary-button" href="${escapeHtml(itineraryUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="google_maps">${escapeHtml(ui(currentLang, "route"))}</a>
-                <a class="secondary-button" href="${escapeHtml(appleUrl)}" target="_blank" rel="noopener" data-track="itinerary" data-track-value="apple_maps">${escapeHtml(ui(currentLang, "appleMaps"))}</a>
-              </div>
-            </div>
-            <div class="info-grid">
-              ${card(ui(currentLang, "address"), p.address, "Localisation")}
-              ${card(ui(currentLang, "gps"), p.gps, ui(currentLang, "gps"))}
-              ${card(sectionText(currentLang, "accessSecure"), arrival.keybox, sectionText(currentLang, "arrivalHint"))}
-              ${card(ui(currentLang, "checkin"), arrival.checkin, "Horaire")}
-            </div>
-            ${arrivalPhotos.length ? `
-              <div class="arrival-media-block">
-                <p class="eyebrow">${escapeHtml(sectionText(currentLang, "arrivalPhotos"))}</p>
-                <div class="arrival-photo-grid">${arrivalPhotos.map((photo, index) => galleryFigure(photo, `${sectionText(currentLang, "arrivalPhotos")} ${index + 1}`)).join("")}</div>
-              </div>
-            ` : ""}
-            ${arrivalVideo ? `<div class="arrival-media-block"><p class="eyebrow">${escapeHtml(ui(currentLang, "video"))}</p>${arrivalVideo}</div>` : ""}
+            ${arrivalAccessPanel(sectionText(currentLang, "arrivalInstructionsTitle"), arrivalInstructions || DEFAULT_ARRIVAL_INSTRUCTIONS, sectionText(currentLang, "arrivalHint"), arrivalAccessMedia)}
           ` : `
-            <div class="arrival-locked-panel">
-              <span class="panel-label">${escapeHtml(sectionText(currentLang, "unlockDate"))}</span>
-              <strong>${escapeHtml(formatDateLabel(arrivalUnlock) || ui(currentLang, "confirm"))}</strong>
-              <h3>${escapeHtml(sectionText(currentLang, "lockedArrivalTitle"))}</h3>
-              <p>${escapeHtml(sectionText(currentLang, "lockedArrivalText"))}</p>
-            </div>
+            ${arrivalAccessPanel(sectionText(currentLang, "lockedArrivalTitle"), sectionText(currentLang, "lockedArrivalText"), sectionText(currentLang, "arrivalHint"), `
+              <div class="arrival-unlock-date">
+                <span>${escapeHtml(sectionText(currentLang, "availableFrom"))}</span>
+                <strong>${escapeHtml(formatDateLabel(arrivalUnlock) || ui(currentLang, "confirm"))}</strong>
+              </div>
+            `)}
           `}
         </section>
 
