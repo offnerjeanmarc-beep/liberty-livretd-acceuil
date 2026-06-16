@@ -25,6 +25,7 @@ Votre livret d'accueil Liberty est prêt :
 Bon séjour,
 Conciergerie Liberty`;
 const DEFAULT_ARRIVAL_INSTRUCTIONS = "Les instructions détaillées d’arrivée seront complétées et transmises par Liberty 2 jours avant votre arrivée afin de vous garantir un accès simple et une installation en toute sérénité.";
+const DEFAULT_ABOUT_LIBERTY = "Groupe Liberty accompagne votre séjour avec une exigence de qualité, de transparence et de sérénité. Notre équipe veille à la préparation du logement, à la fluidité de votre accueil et à l'assistance utile pendant votre séjour.";
 const SUPPORTED_LANGUAGES = [
   { code: "fr", label: "Français", short: "FR", dir: "ltr", name: "French" },
   { code: "en", label: "English", short: "EN", dir: "ltr", name: "English" },
@@ -35,7 +36,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v34";
+const ASSET_VERSION = "20260616-arrival-unlock-v35";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
@@ -295,7 +296,7 @@ const UI_TEXT = {
     destination: "Destination", checkin: "Check-in", checkout: "Check-out", route: "Ouvrir l'itinéraire",
     appleMaps: "Apple Plans", essentialInfo: "Informations essentielles", guest: "Voyageur", dates: "Dates",
     accessCode: "Code d'accès", sentBeforeArrival: "Transmis avant arrivée", address: "Adresse", gps: "GPS",
-    keybox: "Boîte à clés", keyDelivery: "Remise des clés", video: "Tutoriel vidéo", departure: "Départ",
+    keybox: "À propos de nous", keyDelivery: "Remise des clés", video: "Tutoriel vidéo", departure: "Départ",
     departureTitle: "Départ et remise en exploitation", departureTime: "Heure de départ", equipment: "Équipement",
     wifiEquipment: "Wi-Fi & Équipements", comfort: "Confort du logement", network: "Réseau", password: "Mot de passe",
     bonsPlans: "Bons Plans Liberty", transport: "Transport", cityGuide: "City Guide Liberty",
@@ -834,7 +835,7 @@ async function initDb() {
     await seedProperty("Appartement Cathédrale", "appartement-cathedrale", "CATHEDRALE2026", "Strasbourg", "Vue élégante au coeur du centre historique, à proximité de la Cathédrale.", {
       address: "12 Rue des Orfèvres, 67000 Strasbourg",
       gps: "48.5819, 7.7507",
-      keybox: "Boîte à clés noire à droite de l'entrée, code transmis dans Mon Séjour.",
+      keybox: DEFAULT_ABOUT_LIBERTY,
       checkin: "Arrivée autonome à partir de 16h00.",
       checkout: "Départ avant 10h00.",
       wifi: { network: "Liberty-Cathedrale", password: "LIBERTY-WIFI-2026" },
@@ -842,7 +843,7 @@ async function initDb() {
     await seedProperty("Studio Gare", "studio-gare", "GARE2026", "Strasbourg", "Studio premium pensé pour les arrivées rapides et les séjours professionnels.", {
       address: "8 Rue du Maire Kuss, 67000 Strasbourg",
       gps: "48.5845, 7.7357",
-      keybox: "Coffret sécurisé dans le hall, code personnel à renseigner dans Mon Séjour.",
+      keybox: DEFAULT_ABOUT_LIBERTY,
       checkin: "Arrivée autonome à partir de 15h00.",
       checkout: "Départ avant 11h00.",
       wifi: { network: "Liberty-Gare", password: "GARE-PREMIUM-2026" },
@@ -850,7 +851,7 @@ async function initDb() {
     await seedProperty("Duplex Centre", "duplex-centre", "DUPLEX2026", "Strasbourg", "Duplex familial avec prestations complètes et accès direct aux bonnes adresses Liberty.", {
       address: "4 Rue des Serruriers, 67000 Strasbourg",
       gps: "48.5808, 7.7485",
-      keybox: "Remise des clés via boîte sécurisée dans la cour intérieure.",
+      keybox: DEFAULT_ABOUT_LIBERTY,
       checkin: "Arrivée autonome à partir de 16h00.",
       checkout: "Départ avant 10h00.",
       wifi: { network: "Liberty-Duplex", password: "DUPLEX-CONFORT-2026" },
@@ -925,7 +926,7 @@ function defaultPropertyData(overrides = {}) {
       messages: ["Bienvenue dans votre espace voyageurs Liberty.", "Toutes les informations essentielles sont centralisées ici."],
     },
     arrival: {
-      keybox: overrides.keybox || "Procédure de remise des clés à compléter.",
+      keybox: overrides.keybox || DEFAULT_ABOUT_LIBERTY,
       checkin: overrides.checkin || "Arrivée à partir de 16h00.",
       instructions: DEFAULT_ARRIVAL_INSTRUCTIONS,
       photos: [],
@@ -1454,6 +1455,13 @@ function uniqueList(items) {
   return [...new Set((items || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
+function publicAboutLibertyText(value) {
+  const text = String(value || "").trim();
+  if (!text) return DEFAULT_ABOUT_LIBERTY;
+  const legacyAccessPattern = /(bo[iî]te|cl[ée]|digicode|code d.?entr|appartement|immeuble|plateforme de r[eé]servation|photos d[e']?acc[eè]s|arriv[eé]e demain)/i;
+  return legacyAccessPattern.test(text) ? DEFAULT_ABOUT_LIBERTY : text;
+}
+
 function galleryPhotosFor(data, coverImage = "") {
   const photos = uniqueList([
     ...(Array.isArray(data.galleryPhotos) ? data.galleryPhotos : []),
@@ -1863,7 +1871,6 @@ function layout({ title, body, scripts = "", admin = false, lang = "fr" }) {
       .app-shell[data-page]:not([data-page="mon-sejour"]) .traveler-hero,
       .app-shell[data-page]:not([data-page="mon-sejour"]) .metric-row { display: none; }
       .app-shell[data-page="mon-sejour"] #mon-sejour,
-      .app-shell[data-page="mon-sejour"] #depart,
       .app-shell[data-page="assistant"] #assistant,
       .app-shell[data-page="arrivee"] #arrivee,
       .app-shell[data-page="photos"] #galerie,
@@ -2070,16 +2077,6 @@ function arrivalAccessPanel(title, text, meta = "", media = "") {
   </article>`;
 }
 
-function arrivalKeyboxPanel(title, text, meta = "") {
-  return `<article class="arrival-keybox-panel">
-    ${meta ? `<span class="panel-label">${escapeHtml(meta)}</span>` : ""}
-    <div>
-      <h3>${escapeHtml(title)}</h3>
-      <div>${textBlock(text)}</div>
-    </div>
-  </article>`;
-}
-
 function textBlock(value) {
   const text = String(value || "").trim();
   if (!text) return "<p></p>";
@@ -2180,6 +2177,7 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
     ` : "",
     arrivalVideo ? `<div class="arrival-access-media-block"><p class="eyebrow">${escapeHtml(ui(currentLang, "video"))}</p>${arrivalVideo}</div>` : "",
   ].filter(Boolean).join("");
+  const aboutLibertyText = publicAboutLibertyText(arrival.keybox);
   const services = d.services || [];
   const city = d.city || {};
   const guides = city.guides || [];
@@ -2310,23 +2308,38 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
         <section class="content-section" id="mon-sejour">
           <p class="eyebrow">${escapeHtml(ui(currentLang, "stay"))}</p>
           <h2>${escapeHtml(ui(currentLang, "essentialInfo"))}</h2>
-          <div class="info-grid">
-            ${card(ui(currentLang, "guest"), d.stay?.guestName || ui(currentLang, "complete"), ui(currentLang, "stay"))}
-            ${card(ui(currentLang, "dates"), d.stay?.dates || ui(currentLang, "complete"), "Réservation")}
+          <div class="stay-overview-panel">
+            <span class="panel-label">Informations essentielles</span>
+            <div class="stay-overview-grid">
+              <article>
+                <span>Voyageur</span>
+                <strong>${escapeHtml(d.stay?.guestName || ui(currentLang, "complete"))}</strong>
+              </article>
+              <article>
+                <span>Dates du séjour</span>
+                <strong>${escapeHtml(d.stay?.dates || ui(currentLang, "complete"))}</strong>
+              </article>
+              <article>
+                <span>Logement</span>
+                <strong>${escapeHtml(p.name)}</strong>
+              </article>
+            </div>
+            <div class="stay-arrival-status">
+              <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
+              ${!arrivalUnlocked ? `
+                <p>${escapeHtml(sectionText(currentLang, "lockedArrivalText"))}</p>
+                <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">${escapeHtml(sectionText(currentLang, "availableFrom"))} : ${escapeHtml(formatDateLabel(arrivalUnlock) || ui(currentLang, "confirm"))} <span>→</span></a>
+              ` : `
+                <p>Les instructions d'arrivée sont disponibles dans la page Arrivée.</p>
+                <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">Voir les instructions <span>→</span></a>
+              `}
+            </div>
           </div>
-          ${!arrivalUnlocked ? `
-            <div class="arrival-summary-note">
-              <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
-              <p>${escapeHtml(sectionText(currentLang, "lockedArrivalText"))}</p>
-              <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">${escapeHtml(sectionText(currentLang, "availableFrom"))} : ${escapeHtml(formatDateLabel(arrivalUnlock) || ui(currentLang, "confirm"))} <span>→</span></a>
-            </div>
-          ` : `
-            <div class="arrival-summary-note">
-              <span class="panel-label">${escapeHtml(sectionText(currentLang, "arrivalHint"))}</span>
-              <p>Les instructions d'arrivée sont disponibles dans la page Arrivée.</p>
-              <a class="premium-link" href="${escapeHtml(travelerPageLink(travelerLinkId, "arrivee", "", currentLang))}">Voir les instructions <span>→</span></a>
-            </div>
-          `}
+          <div class="about-liberty-panel">
+            <span class="panel-label">À propos de nous</span>
+            <h3>À propos de Groupe Liberty</h3>
+            ${textBlock(aboutLibertyText)}
+          </div>
         </section>
 
         <section class="content-section" id="arrivee">
@@ -2359,12 +2372,8 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
               </div>
             `)}
           `}
-        </section>
-
-        <section class="content-section" id="depart">
-          <p class="eyebrow">${escapeHtml(ui(currentLang, "departure"))}</p>
-          <h2>${escapeHtml(ui(currentLang, "departureTitle"))}</h2>
           <div class="departure-notes">
+            <h3>${escapeHtml(ui(currentLang, "departureTitle"))}</h3>
             <span class="panel-label">Avant votre départ</span>
             ${textBlock(d.departure?.cleaning)}
           </div>
@@ -2765,7 +2774,7 @@ async function renderEditProperty(property, message = "") {
           <label>Message de bienvenue<textarea name="welcome">${escapeHtml(property.welcome)}</textarea></label>
           <div class="admin-fieldset">
             <h2>Arrivée</h2>
-            <label>Boîte à clés<textarea name="arrival_keybox">${escapeHtml(parsedData.arrival?.keybox || "")}</textarea></label>
+            <label>À propos de nous<textarea name="arrival_keybox" rows="8" placeholder="Présentez Groupe Liberty, la qualité d'accueil, l'assistance et l'esprit de la conciergerie.">${escapeHtml(parsedData.arrival?.keybox || "")}</textarea></label>
             <label>Check-in<input name="arrival_checkin" value="${escapeHtml(parsedData.arrival?.checkin || "")}" /></label>
             <label>Texte détaillé d'arrivée<textarea name="arrival_instructions" rows="10" placeholder="Décrivez précisément le parcours d'accès, l'entrée de l'immeuble, l'étage, la boîte à clés, les repères visuels et les consignes utiles.">${escapeHtml(parsedData.arrival?.instructions || "")}</textarea></label>
             <label>Photos d'arrivée (une URL par ligne)<textarea name="arrival_photos" rows="6" placeholder="/uploads/carpe-diem/entree-immeuble.jpg&#10;/uploads/carpe-diem/boite-a-cles.jpg">${escapeHtml(listToTextarea(parsedData.arrival?.photos || []))}</textarea></label>
@@ -2873,7 +2882,7 @@ function localAssistantReply(property, message) {
     return `Le réseau Wi-Fi est ${data.equipment?.wifi?.network || "à compléter"} et le mot de passe est ${data.equipment?.wifi?.password || "à compléter"}.`;
   }
   if (lower.includes("clé") || lower.includes("cle") || lower.includes("boîte")) {
-    return data.arrival?.keybox || "La procédure de remise des clés doit être complétée par Liberty.";
+    return data.arrival?.instructions || "Les instructions d'arrivée seront complétées par Liberty.";
   }
   if (lower.includes("départ") || lower.includes("check-out")) return data.departure?.checkout || "Le départ est à confirmer.";
   if (lower.includes("adresse")) return `${property.address} (${property.gps}).`;
