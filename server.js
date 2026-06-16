@@ -36,7 +36,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v35";
+const ASSET_VERSION = "20260616-arrival-unlock-v36";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const adminLoginAttempts = new Map();
@@ -1455,13 +1455,6 @@ function uniqueList(items) {
   return [...new Set((items || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
-function publicAboutLibertyText(value) {
-  const text = String(value || "").trim();
-  if (!text) return DEFAULT_ABOUT_LIBERTY;
-  const legacyAccessPattern = /(bo[iî]te|cl[ée]|digicode|code d.?entr|appartement|immeuble|plateforme de r[eé]servation|photos d[e']?acc[eè]s|arriv[eé]e demain)/i;
-  return legacyAccessPattern.test(text) ? DEFAULT_ABOUT_LIBERTY : text;
-}
-
 function galleryPhotosFor(data, coverImage = "") {
   const photos = uniqueList([
     ...(Array.isArray(data.galleryPhotos) ? data.galleryPhotos : []),
@@ -2177,7 +2170,7 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
     ` : "",
     arrivalVideo ? `<div class="arrival-access-media-block"><p class="eyebrow">${escapeHtml(ui(currentLang, "video"))}</p>${arrivalVideo}</div>` : "",
   ].filter(Boolean).join("");
-  const aboutLibertyText = publicAboutLibertyText(arrival.keybox);
+  const aboutLibertyText = String(arrival.keybox || "").trim() || DEFAULT_ABOUT_LIBERTY;
   const services = d.services || [];
   const city = d.city || {};
   const guides = city.guides || [];
