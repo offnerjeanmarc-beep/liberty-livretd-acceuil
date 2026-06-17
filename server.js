@@ -1857,6 +1857,29 @@ function getTravelerSession(req, property) {
   return token;
 }
 
+async function resolveTravelerAccess(req, identifier) {
+  const property = await propertyBySlug(identifier);
+  if (property) {
+    const session = getTravelerSession(req, property);
+    return session ? { property, session } : null;
+  }
+
+  const stay = await guestStayByToken(identifier);
+  if (!stay || String(stay.status || "").toLowerCase() === "cancelled") return null;
+  const stayProperty = await get("SELECT * FROM properties WHERE id = ?", [stay.property_id]);
+  if (!stayProperty) return null;
+  return {
+    property: stayProperty,
+    session: {
+      type: "guest_stay",
+      propertyId: stayProperty.id,
+      sessionId: `stay_${stay.id}`,
+      stayId: stay.id,
+    },
+    stay,
+  };
+}
+
 function isTravelerAuthenticated(req, property) {
   return Boolean(getTravelerSession(req, property));
 }
@@ -3681,9 +3704,9 @@ async function handleRequest(req, res) {
 
   const requestMatch = pathname.match(/^\/api\/service-request\/([^/]+)$/);
   if (requestMatch && req.method === "POST") {
-    const property = await propertyBySlug(requestMatch[1]);
-    const session = property ? getTravelerSession(req, property) : null;
-    if (!property || !session) return sendJson(res, 403, { error: "Accès refusé" });
+    const access = await resolveTravelerAccess(req, requestMatch[1]);
+    if (!access) return sendJson(res, 403, { error: "Accès refusé" });
+    const { property, session } = access;
     const body = await readJsonBody(req);
     await run("INSERT INTO service_requests (property_id, type, guest_name, message, created_at) VALUES (?, ?, ?, ?, ?)", [
       property.id,
@@ -3698,9 +3721,9 @@ async function handleRequest(req, res) {
 
   const crmMatch = pathname.match(/^\/api\/crm\/([^/]+)$/);
   if (crmMatch && req.method === "POST") {
-    const property = await propertyBySlug(crmMatch[1]);
-    const session = property ? getTravelerSession(req, property) : null;
-    if (!property || !session) return sendJson(res, 403, { error: "Accès refusé" });
+    const access = await resolveTravelerAccess(req, crmMatch[1]);
+    if (!access) return sendJson(res, 403, { error: "Accès refusé" });
+    const { property, session } = access;
     const body = await readJsonBody(req);
     if (!body.email && !body.phone) return sendJson(res, 400, { error: "Email ou téléphone requis." });
     await run(
@@ -3713,9 +3736,9 @@ async function handleRequest(req, res) {
 
   const analyticsMatch = pathname.match(/^\/api\/analytics\/([^/]+)$/);
   if (analyticsMatch && req.method === "POST") {
-    const property = await propertyBySlug(analyticsMatch[1]);
-    const session = property ? getTravelerSession(req, property) : null;
-    if (!property || !session) return sendJson(res, 403, { error: "Accès refusé" });
+    const access = await resolveTravelerAccess(req, analyticsMatch[1]);
+    if (!access) return sendJson(res, 403, { error: "Accès refusé" });
+    const { property, session } = access;
     const body = await readJsonBody(req);
     await recordAnalytics(property.id, String(body.event || "event").slice(0, 80), String(body.value || "").slice(0, 160), session.sessionId || "");
     return sendJson(res, 200, { ok: true });
@@ -3723,9 +3746,9 @@ async function handleRequest(req, res) {
 
   const chatMatch = pathname.match(/^\/api\/chat\/([^/]+)$/);
   if (chatMatch && req.method === "POST") {
-    const property = await propertyBySlug(chatMatch[1]);
-    const session = property ? getTravelerSession(req, property) : null;
-    if (!property || !session) return sendJson(res, 403, { error: "Accès refusé" });
+    const access = await resolveTravelerAccess(req, chatMatch[1]);
+    if (!access) return sendJson(res, 403, { error: "Accès refusé" });
+    const { property, session } = access;
     const body = await readJsonBody(req);
     const message = String(body.message || "").trim().slice(0, Number(property.ai_max_input_chars || 700));
     if (!message) return sendJson(res, 400, { error: "Message vide" });
