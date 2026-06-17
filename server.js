@@ -1692,6 +1692,147 @@ function textareaToServices(value) {
     });
 }
 
+function emptyTranslation() {
+  return {
+    name: "",
+    welcome: "",
+    data: {
+      arrival: { keybox: "", checkin: "", instructions: "", video: "" },
+      departure: { checkout: "", cleaning: "" },
+      rules: [],
+      equipment: { items: [] },
+      city: { bonsPlans: [], transports: [], guides: [], activities: [], restaurants: [], highlights: [] },
+      services: [],
+      directBooking: { title: "", text: "" },
+      loyalty: { benefits: [] },
+      serviceCenter: { title: "", requestTypes: [] },
+      crmCapture: { title: "", label: "", text: "" },
+    },
+  };
+}
+
+function translationFormValue(translated) {
+  return {
+    ...emptyTranslation(),
+    ...(translated || {}),
+    data: {
+      ...emptyTranslation().data,
+      ...((translated || {}).data || {}),
+      arrival: { ...emptyTranslation().data.arrival, ...((translated || {}).data?.arrival || {}) },
+      departure: { ...emptyTranslation().data.departure, ...((translated || {}).data?.departure || {}) },
+      equipment: { ...emptyTranslation().data.equipment, ...((translated || {}).data?.equipment || {}) },
+      city: { ...emptyTranslation().data.city, ...((translated || {}).data?.city || {}) },
+      directBooking: { ...emptyTranslation().data.directBooking, ...((translated || {}).data?.directBooking || {}) },
+      loyalty: { ...emptyTranslation().data.loyalty, ...((translated || {}).data?.loyalty || {}) },
+      serviceCenter: { ...emptyTranslation().data.serviceCenter, ...((translated || {}).data?.serviceCenter || {}) },
+      crmCapture: { ...emptyTranslation().data.crmCapture, ...((translated || {}).data?.crmCapture || {}) },
+    },
+  };
+}
+
+function translationFromAdminForm(form, existing = {}) {
+  const translated = translationFormValue(existing);
+  translated.name = form.translation_name || "";
+  translated.welcome = form.translation_welcome || "";
+  translated.data.arrival = {
+    ...(translated.data.arrival || {}),
+    keybox: form.translation_arrival_keybox || "",
+    checkin: form.translation_arrival_checkin || "",
+    instructions: form.translation_arrival_instructions || "",
+    video: form.translation_arrival_video || "",
+  };
+  translated.data.departure = {
+    ...(translated.data.departure || {}),
+    checkout: form.translation_departure_checkout || "",
+    cleaning: form.translation_departure_cleaning || "",
+  };
+  translated.data.rules = textareaToList(form.translation_rules);
+  translated.data.equipment = translated.data.equipment || {};
+  translated.data.equipment.items = textareaToEquipment(form.translation_equipment_items);
+  translated.data.city = translated.data.city || {};
+  translated.data.city.bonsPlans = textareaToCards(form.translation_bons_plans);
+  translated.data.city.transports = textareaToCards(form.translation_transports);
+  translated.data.city.guides = textareaToSimpleItems(form.translation_city_guides);
+  translated.data.services = textareaToServices(form.translation_services_items);
+  translated.data.directBooking = {
+    ...(translated.data.directBooking || {}),
+    title: form.translation_direct_title || "",
+    text: form.translation_direct_text || "",
+  };
+  translated.data.loyalty = {
+    ...(translated.data.loyalty || {}),
+    benefits: textareaToList(form.translation_loyalty_benefits),
+  };
+  translated.data.serviceCenter = {
+    ...(translated.data.serviceCenter || {}),
+    title: form.translation_service_center_title || "",
+    requestTypes: textareaToList(form.translation_service_request_types),
+  };
+  translated.data.crmCapture = {
+    ...(translated.data.crmCapture || {}),
+    title: form.translation_crm_title || "",
+    label: form.translation_crm_label || "",
+    text: form.translation_crm_text || "",
+  };
+  return translated;
+}
+
+function translationAdminForm(property, language, row) {
+  const value = translationFormValue(row?.translated || {});
+  const updated = row?.updated_at ? `Dernière mise à jour : ${row.updated_at}` : "Aucune traduction enregistrée.";
+  const status = row?.status || "manuel";
+  return `<details class="translation-editor" id="traduction-${escapeHtml(language.code)}">
+    <summary>
+      <span><strong>${escapeHtml(language.label)}</strong><small>${escapeHtml(language.code)} · ${escapeHtml(status)}</small></span>
+      <em>${escapeHtml(updated)}</em>
+    </summary>
+    <form class="admin-form translation-form" method="post" action="/admin/logements/${property.id}/translations/${encodeURIComponent(language.code)}/edit">
+      ${csrfField("admin")}
+      <div class="translation-actions">
+        <button class="primary-button compact" name="mode" value="save" type="submit">Enregistrer cette langue</button>
+        <button class="secondary-button compact" name="mode" value="copy-fr" type="submit" onclick="return confirm('Copier les textes français dans cette langue ? Les champs existants de cette traduction seront remplacés.');">Copier depuis le français</button>
+      </div>
+      <label>Nom du logement<input name="translation_name" value="${escapeHtml(value.name)}" /></label>
+      <label>Message de bienvenue<textarea name="translation_welcome" rows="6">${escapeHtml(value.welcome)}</textarea></label>
+      <div class="admin-fieldset">
+        <h3>Arrivée</h3>
+        <label>À propos de nous<textarea name="translation_arrival_keybox" rows="8">${escapeHtml(value.data.arrival.keybox || "")}</textarea></label>
+        <label>Check-in<input name="translation_arrival_checkin" value="${escapeHtml(value.data.arrival.checkin || "")}" /></label>
+        <label>Texte détaillé d'arrivée<textarea name="translation_arrival_instructions" rows="10">${escapeHtml(value.data.arrival.instructions || "")}</textarea></label>
+        <label>Tutoriel vidéo<input name="translation_arrival_video" value="${escapeHtml(value.data.arrival.video || "")}" /></label>
+      </div>
+      <div class="admin-fieldset">
+        <h3>Départ, règles et équipements</h3>
+        <label>Heure de départ<input name="translation_departure_checkout" value="${escapeHtml(value.data.departure.checkout || "")}" /></label>
+        <label>Avant votre départ<textarea name="translation_departure_cleaning" rows="8">${escapeHtml(value.data.departure.cleaning || "")}</textarea></label>
+        <label>Règles du logement<textarea name="translation_rules" rows="5">${escapeHtml(listToTextarea(value.data.rules || []))}</textarea></label>
+        <label>Équipements (nom | explication)<textarea name="translation_equipment_items" rows="7">${escapeHtml(equipmentToTextarea(value.data.equipment.items || []))}</textarea></label>
+      </div>
+      <div class="admin-fieldset">
+        <h3>Ville et services</h3>
+        <label>Bons plans (titre | description | distance | adresse | lien)<textarea name="translation_bons_plans" rows="6">${escapeHtml(cardsToTextarea(value.data.city.bonsPlans || []))}</textarea></label>
+        <label>Transports (titre | description | distance | adresse | lien)<textarea name="translation_transports" rows="6">${escapeHtml(cardsToTextarea(value.data.city.transports || []))}</textarea></label>
+        <label>City Guide Liberty (titre puis texte long, séparer chaque guide par ---)<textarea name="translation_city_guides" rows="10">${escapeHtml(simpleItemsToTextarea(value.data.city.guides || []))}</textarea></label>
+        <label>Options Liberty (titre | prix | texte)<textarea name="translation_services_items" rows="6">${escapeHtml(servicesToTextarea(value.data.services || []))}</textarea></label>
+      </div>
+      <div class="admin-fieldset">
+        <h3>Conversion et demandes</h3>
+        <label>Titre réservation directe<input name="translation_direct_title" value="${escapeHtml(value.data.directBooking.title || "")}" /></label>
+        <label>Texte réservation directe<textarea name="translation_direct_text" rows="4">${escapeHtml(value.data.directBooking.text || "")}</textarea></label>
+        <label>Avantages fidélité<textarea name="translation_loyalty_benefits" rows="4">${escapeHtml(listToTextarea(value.data.loyalty.benefits || []))}</textarea></label>
+        <label>Titre Centre de Services<input name="translation_service_center_title" value="${escapeHtml(value.data.serviceCenter.title || "")}" /></label>
+        <label>Types de demandes<textarea name="translation_service_request_types" rows="4">${escapeHtml(listToTextarea(value.data.serviceCenter.requestTypes || []))}</textarea></label>
+        <label>Titre avantages Liberty<input name="translation_crm_title" value="${escapeHtml(value.data.crmCapture.title || "")}" /></label>
+        <label>Libellé court<input name="translation_crm_label" value="${escapeHtml(value.data.crmCapture.label || "")}" /></label>
+        <label>Texte avantages<textarea name="translation_crm_text" rows="4">${escapeHtml(value.data.crmCapture.text || "")}</textarea></label>
+      </div>
+      <div class="translation-actions">
+        <button class="primary-button compact" name="mode" value="save" type="submit">Enregistrer cette langue</button>
+      </div>
+    </form>
+  </details>`;
+}
+
 function renderFooter() {
   return `<footer class="legal-footer">
     <span>Conciergerie Liberty</span>
@@ -2688,8 +2829,8 @@ async function renderEditProperty(property, message = "") {
             </form>`}
       </td>
     </tr>`).join("");
-  const translationRows = await all("SELECT lang, status, updated_at FROM property_translations WHERE property_id = ? ORDER BY lang", [property.id]);
-  const translationMap = Object.fromEntries(translationRows.map((row) => [row.lang, row]));
+  const translationRows = await all("SELECT lang, status, updated_at, translated_json FROM property_translations WHERE property_id = ? ORDER BY lang", [property.id]);
+  const translationMap = Object.fromEntries(translationRows.map((row) => [row.lang, { ...row, translated: json(row.translated_json, {}) }]));
   const canGenerateTranslations = hasUsableOpenAIKey(property);
   const translationStatusRows = TARGET_TRANSLATION_LANGUAGES.map((language) => {
     const row = translationMap[language.code];
@@ -2705,6 +2846,9 @@ async function renderEditProperty(property, message = "") {
       </td>
     </tr>`;
   }).join("");
+  const translationEditors = TARGET_TRANSLATION_LANGUAGES
+    .map((language) => translationAdminForm(property, language, translationMap[language.code]))
+    .join("");
   return layout({
     title: `Modifier ${property.name} | Administration Liberty`,
     admin: true,
@@ -2739,9 +2883,11 @@ async function renderEditProperty(property, message = "") {
           <div class="admin-photo-grid">${arrivalPhotoPreview || `<p>Aucune photo d'arrivée pour le moment.</p>`}</div>
         </section>
         <section class="admin-panel">
-          <div class="panel-title"><h2>Traductions voyageurs</h2><p>Le français reste la source admin. Les traductions sont générées automatiquement puis stockées par logement.</p></div>
-          <p class="${canGenerateTranslations ? "success-message" : "warning-message"}">${canGenerateTranslations ? "Prêt : générez une langue à la fois pour éviter les timeouts cPanel." : "Ajoutez une clé OpenAI réelle au logement pour générer les traductions."}</p>
-          <div class="table-wrap"><table><thead><tr><th>Langue</th><th>Statut</th><th>Dernière génération</th><th>Action</th></tr></thead><tbody>${translationStatusRows}</tbody></table></div>
+          <div class="panel-title"><h2>Traductions voyageurs</h2><p>Le français reste la source admin. Vous pouvez modifier chaque langue manuellement, sans coût IA. Le bouton de génération automatique reste optionnel.</p></div>
+          <p class="form-help">Ouvrez une langue, corrigez les champs utiles, puis enregistrez. “Copier depuis le français” remplit la langue avec la source française pour démarrer plus vite.</p>
+          <p class="${canGenerateTranslations ? "success-message" : "warning-message"}">${canGenerateTranslations ? "Option IA disponible : générez une langue à la fois si besoin." : "Mode manuel actif : aucune clé OpenAI nécessaire pour modifier les traductions."}</p>
+          <div class="table-wrap"><table><thead><tr><th>Langue</th><th>Statut</th><th>Dernière mise à jour</th><th>Option IA</th></tr></thead><tbody>${translationStatusRows}</tbody></table></div>
+          <div class="translation-editor-list">${translationEditors}</div>
         </section>
         <section class="admin-panel">
           <div class="panel-title"><h2>Synchronisation Lodgify</h2><p>Crée les fiches séjour personnalisées depuis les réservations confirmées du logement.</p></div>
@@ -2975,12 +3121,12 @@ Translate natural-language text only. Empty strings must remain empty strings.`;
   return extractJsonObject(extractOpenAIText(result));
 }
 
-async function savePropertyTranslation(propertyId, language, translated) {
+async function savePropertyTranslation(propertyId, language, translated, status = "generated") {
   const existing = await get("SELECT id FROM property_translations WHERE property_id = ? AND lang = ?", [propertyId, language.code]);
   const timestamp = now();
   if (existing) {
     await run("UPDATE property_translations SET status = ?, translated_json = ?, updated_at = ? WHERE id = ?", [
-      "generated",
+      status,
       JSON.stringify(translated),
       timestamp,
       existing.id,
@@ -2990,7 +3136,7 @@ async function savePropertyTranslation(propertyId, language, translated) {
   await run("INSERT INTO property_translations (property_id, lang, status, translated_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", [
     propertyId,
     language.code,
-    "generated",
+    status,
     JSON.stringify(translated),
     timestamp,
     timestamp,
@@ -3331,6 +3477,28 @@ async function handleRequest(req, res) {
       await run("UPDATE guest_stays SET message_status = ?, updated_at = ? WHERE id = ?", ["erreur", now(), stay.id]);
       return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`Message Lodgify non envoyé : ${error.message}`)}`);
     }
+  }
+
+  const translationsEditMatch = pathname.match(/^\/admin\/logements\/(\d+)\/translations\/([^/]+)\/edit$/);
+  if (translationsEditMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
+  if (translationsEditMatch && req.method === "POST") {
+    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(translationsEditMatch[1])]);
+    if (!property) return send(res, 404, "Logement introuvable");
+    const language = languageByCode(translationsEditMatch[2]);
+    if (!language || language.code === "fr") return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent("Langue de traduction invalide.")}`);
+    const form = await readForm(req);
+    if (!verifyCsrf(form.csrf, "admin")) {
+      return send(res, 403, await renderEditProperty(property, "Session expirée. Rechargez la page."));
+    }
+    const existing = await propertyTranslation(property.id, language.code);
+    const translated = form.mode === "copy-fr"
+      ? translationSource(property)
+      : translationFromAdminForm(form, existing || {});
+    await savePropertyTranslation(property.id, language, translated, "manual");
+    const message = form.mode === "copy-fr"
+      ? `Source française copiée dans ${language.label}.`
+      : `Traduction ${language.label} enregistrée.`;
+    return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(message)}#traduction-${encodeURIComponent(language.code)}`);
   }
 
   const translationsGenerateMatch = pathname.match(/^\/admin\/logements\/(\d+)\/translations\/generate\/([^/]+)$/);

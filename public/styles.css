@@ -1916,6 +1916,69 @@ select:focus {
   line-height: 1.6;
 }
 
+.translation-editor-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.translation-editor {
+  border: 1px solid var(--gray-100);
+  background: var(--cream);
+}
+
+.translation-editor summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.translation-editor summary::-webkit-details-marker {
+  display: none;
+}
+
+.translation-editor summary strong,
+.translation-editor summary small,
+.translation-editor summary em {
+  display: block;
+}
+
+.translation-editor summary strong {
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.translation-editor summary small,
+.translation-editor summary em {
+  color: var(--gray-500);
+  font-size: 0.82rem;
+  font-style: normal;
+}
+
+.translation-form {
+  padding: 0 1.1rem 1.1rem;
+}
+
+.translation-form .admin-fieldset {
+  background: var(--white);
+}
+
+.translation-form h3 {
+  font-size: 1.45rem;
+}
+
+.translation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  align-items: center;
+}
+
 .guest-stay-page {
   min-height: 100vh;
   background: var(--white);
