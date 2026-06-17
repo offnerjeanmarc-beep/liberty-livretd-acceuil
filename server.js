@@ -36,9 +36,10 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260616-arrival-unlock-v36";
+const ASSET_VERSION = "20260617-drive-import-v37";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const GOOGLE_DRIVE_IMPORT_LIMIT = 40;
 const adminLoginAttempts = new Map();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -1585,6 +1586,135 @@ function safeUploadBaseName(filename) {
   return base || "photo";
 }
 
+function googleDriveFolderId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const folderMatch = raw.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (folderMatch) return folderMatch[1];
+  try {
+    const parsed = new URL(raw);
+    return parsed.searchParams.get("id") || "";
+  } catch {}
+  return /^[a-zA-Z0-9_-]{20,}$/.test(raw) ? raw : "";
+}
+
+function decodeDriveString(value) {
+  const raw = String(value || "");
+  try {
+    return JSON.parse(`"${raw.replace(/"/g, '\\"')}"`);
+  } catch {
+    return raw.replace(/\\u([0-9a-fA-F]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16))).replace(/\\"/g, '"');
+  }
+}
+
+function driveImageExtension(filename) {
+  const ext = path.extname(String(filename || "")).toLowerCase();
+  const allowed = new Map([
+    [".jpg", "jpg"],
+    [".jpeg", "jpg"],
+    [".png", "png"],
+    [".webp", "webp"],
+    [".gif", "gif"],
+  ]);
+  return allowed.get(ext) || "";
+}
+
+function imageExtensionFromDownload(buffer, contentType, filename) {
+  if (buffer?.length > 12) {
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return "jpg";
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return "png";
+    if (buffer.slice(0, 4).toString("ascii") === "GIF8") return "gif";
+    if (buffer.slice(0, 4).toString("ascii") === "RIFF" && buffer.slice(8, 12).toString("ascii") === "WEBP") return "webp";
+  }
+  const byType = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  return byType[String(contentType || "").split(";")[0].toLowerCase()] || driveImageExtension(filename);
+}
+
+function googleDriveFilesFromHtml(html) {
+  const files = new Map();
+  const add = (id, name) => {
+    const cleanId = String(id || "").trim();
+    const cleanName = decodeDriveString(name || "").trim();
+    if (!/^[a-zA-Z0-9_-]{20,}$/.test(cleanId) || !driveImageExtension(cleanName)) return;
+    files.set(cleanId, { id: cleanId, name: cleanName });
+  };
+  const patterns = [
+    /\\?"([a-zA-Z0-9_-]{20,})\\?"\s*,\s*\\?"((?:[^"\\]|\\.)+\.(?:jpe?g|png|webp|gif))\\?"/gi,
+    /\\?"((?:[^"\\]|\\.)+\.(?:jpe?g|png|webp|gif))\\?"[\s\S]{0,260}?\\?"([a-zA-Z0-9_-]{20,})\\?"/gi,
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(html))) {
+      if (driveImageExtension(match[2])) add(match[1], match[2]);
+      else add(match[2], match[1]);
+    }
+  }
+  return [...files.values()].slice(0, GOOGLE_DRIVE_IMPORT_LIMIT);
+}
+
+async function fetchGoogleDriveFolderFiles(folderUrl) {
+  const folderId = googleDriveFolderId(folderUrl);
+  if (!folderId) throw new Error("Lien Google Drive invalide. Collez un lien de dossier Drive ou son identifiant.");
+  const response = await fetch(`https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}?usp=sharing`, {
+    headers: { "User-Agent": "Mozilla/5.0 LibertyPhotoImporter/1.0" },
+  });
+  if (!response.ok) throw new Error(`Dossier Google Drive inaccessible (${response.status}). Vérifiez le partage par lien.`);
+  const html = await response.text();
+  const files = googleDriveFilesFromHtml(html);
+  if (!files.length) {
+    throw new Error("Aucune image importable trouvée. Le dossier doit être partagé en lecture par lien et contenir des JPG, PNG, WebP ou GIF.");
+  }
+  return files;
+}
+
+async function downloadGoogleDriveImage(file) {
+  let response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(file.id)}`, {
+    redirect: "follow",
+    headers: { "User-Agent": "Mozilla/5.0 LibertyPhotoImporter/1.0" },
+  });
+  let contentType = response.headers.get("content-type") || "";
+  let buffer = Buffer.from(await response.arrayBuffer());
+
+  if (contentType.includes("text/html")) {
+    const html = buffer.toString("utf8");
+    const confirmUrl = html.match(/href="([^"]*\/uc\?export=download[^"]*confirm=[^"]*)"/i)?.[1]?.replace(/&amp;/g, "&");
+    if (confirmUrl) {
+      const nextUrl = confirmUrl.startsWith("http") ? confirmUrl : `https://drive.google.com${confirmUrl}`;
+      response = await fetch(nextUrl, { redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 LibertyPhotoImporter/1.0" } });
+      contentType = response.headers.get("content-type") || "";
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+  }
+
+  const extension = imageExtensionFromDownload(buffer, contentType, file.name);
+  if (!extension || String(contentType).includes("text/html")) throw new Error(`Image Google Drive illisible : ${file.name}`);
+  return { buffer, extension };
+}
+
+async function importGoogleDriveImages(property, folderUrl, arrival = false) {
+  const files = await fetchGoogleDriveFolderFiles(folderUrl);
+  const folder = arrival ? `${slugify(property.slug || property.name)}-arrivee` : slugify(property.slug || property.name);
+  const uploadDir = path.join(UPLOADS_DIR, folder);
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const uploaded = [];
+  for (const [index, file] of files.entries()) {
+    try {
+      const image = await downloadGoogleDriveImage(file);
+      const baseName = safeUploadBaseName(file.name);
+      const filename = `${Date.now()}-${index}-${crypto.randomBytes(4).toString("hex")}-${baseName}.${image.extension}`;
+      fs.writeFileSync(path.join(uploadDir, filename), image.buffer);
+      uploaded.push(`/assets/uploads/${folder}/${filename}`);
+    } catch {}
+  }
+  if (!uploaded.length) throw new Error("Les images du dossier Google Drive n'ont pas pu être téléchargées. Vérifiez le partage par lien et les formats.");
+  return uploaded;
+}
+
 function mapsUrl(address, gps = "") {
   const query = address || gps || "";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
@@ -2894,6 +3024,12 @@ async function renderEditProperty(property, message = "") {
             <label>Importer des photos<input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
             <button class="secondary-button compact" type="submit">Importer les photos</button>
           </form>
+          <form class="drive-import-form" method="post" action="/admin/logements/${property.id}/google-drive/photos">
+            ${csrfField("admin")}
+            <label>Importer depuis un dossier Google Drive<input name="drive_url" type="url" placeholder="https://drive.google.com/drive/folders/..." /></label>
+            <button class="secondary-button compact" type="submit">Importer depuis Drive</button>
+            <p class="form-help">Le dossier doit être partagé en lecture via lien. Formats importés : JPG, PNG, WebP ou GIF.</p>
+          </form>
           <div class="admin-photo-grid">${photoPreview || `<p>Aucune photo de galerie pour le moment.</p>`}</div>
         </section>
         <section class="admin-panel">
@@ -2902,6 +3038,12 @@ async function renderEditProperty(property, message = "") {
             ${csrfField("admin")}
             <label>Importer des photos d'arrivée<input name="arrival_photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple /></label>
             <button class="secondary-button compact" type="submit">Importer les photos d'arrivée</button>
+          </form>
+          <form class="drive-import-form" method="post" action="/admin/logements/${property.id}/google-drive/arrival-photos">
+            ${csrfField("admin")}
+            <label>Importer des photos d'arrivée depuis Google Drive<input name="drive_url" type="url" placeholder="https://drive.google.com/drive/folders/..." /></label>
+            <button class="secondary-button compact" type="submit">Importer depuis Drive</button>
+            <p class="form-help">Ces images seront visibles uniquement dans la page Arrivée, selon le déblocage J-2.</p>
           </form>
           <div class="admin-photo-grid">${arrivalPhotoPreview || `<p>Aucune photo d'arrivée pour le moment.</p>`}</div>
         </section>
@@ -3352,6 +3494,49 @@ async function handleRequest(req, res) {
       property.id,
     ]);
     return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${uploaded.length} photo(s) d'arrivee importee(s)`)}`);
+  }
+
+  const drivePhotoImportMatch = pathname.match(/^\/admin\/logements\/(\d+)\/google-drive\/(photos|arrival-photos)$/);
+  if (drivePhotoImportMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
+  if (drivePhotoImportMatch && req.method === "POST") {
+    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(drivePhotoImportMatch[1])]);
+    if (!property) return send(res, 404, "Logement introuvable");
+    const form = await readForm(req);
+    if (!verifyCsrf(form.csrf, "admin")) {
+      return send(res, 403, await renderEditProperty(property, "Session expiree. Rechargez la page."));
+    }
+
+    const arrival = drivePhotoImportMatch[2] === "arrival-photos";
+    let uploaded = [];
+    try {
+      uploaded = await importGoogleDriveImages(property, form.drive_url, arrival);
+    } catch (error) {
+      return send(res, 400, await renderEditProperty(property, error.message || "Import Google Drive impossible."));
+    }
+
+    const parsed = json(property.data_json, {});
+    if (arrival) {
+      parsed.arrival = parsed.arrival || {};
+      parsed.arrival.photos = uniqueList([...(Array.isArray(parsed.arrival.photos) ? parsed.arrival.photos : []), ...uploaded]);
+      await run("UPDATE properties SET data_json = ?, updated_at = ? WHERE id = ?", [
+        JSON.stringify(parsed),
+        now(),
+        property.id,
+      ]);
+      return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${uploaded.length} photo(s) d'arrivee importee(s) depuis Google Drive`)}`);
+    }
+
+    parsed.galleryPhotos = uniqueList([...(parsed.galleryPhotos || []), ...uploaded]);
+    parsed.directBooking = parsed.directBooking || {};
+    parsed.directBooking.photos = uniqueList([...(parsed.directBooking.photos || []), ...uploaded]);
+    const shouldReplaceCover = !property.cover_image || property.cover_image === "/assets/liberty-hero.png";
+    await run("UPDATE properties SET cover_image = ?, data_json = ?, updated_at = ? WHERE id = ?", [
+      shouldReplaceCover ? uploaded[0] : property.cover_image,
+      JSON.stringify(parsed),
+      now(),
+      property.id,
+    ]);
+    return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${uploaded.length} photo(s) importee(s) depuis Google Drive`)}`);
   }
 
   const photoReorderMatch = pathname.match(/^\/admin\/logements\/(\d+)\/photos\/reorder$/);

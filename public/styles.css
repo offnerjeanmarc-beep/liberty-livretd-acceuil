@@ -2021,9 +2021,29 @@ select:focus {
   align-items: end;
 }
 
+.drive-import-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: end;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-100);
+}
+
 .photo-upload-form label {
   display: grid;
   gap: 0.45rem;
+}
+
+.drive-import-form label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.drive-import-form .form-help {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .admin-photo-grid {
@@ -2294,6 +2314,7 @@ td span {
   .chat-form,
   .grid-form,
   .photo-upload-form,
+  .drive-import-form,
   .crm-form {
     grid-template-columns: 1fr;
   }
