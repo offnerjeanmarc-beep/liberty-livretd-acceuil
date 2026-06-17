@@ -2388,7 +2388,7 @@ async function renderTraveler(property, req, activePage = "mon-sejour", lang = "
   return layout({
     title: `${p.name} | Espace voyageurs Liberty`,
     lang: currentLang,
-    body: `<div class="app-shell" data-slug="${escapeHtml(p.slug)}" data-page="${escapeHtml(page)}">
+    body: `<div class="app-shell" data-slug="${escapeHtml(travelerLinkId)}" data-page="${escapeHtml(page)}">
       <aside class="side-nav">
         <div class="brand" aria-label="Conciergerie Liberty"><span>Groupe Liberty</span><strong>Conciergerie Liberty</strong></div>
         <div class="nav-property">
