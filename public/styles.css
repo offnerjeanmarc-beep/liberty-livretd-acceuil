@@ -1910,6 +1910,220 @@ select:focus {
   background: var(--cream);
 }
 
+.lodgify-sync-action {
+  margin: 1.1rem 0;
+}
+
+.guest-stays-panel {
+  margin-top: 1.2rem;
+  border: 1px solid var(--gray-100);
+  background: var(--white);
+}
+
+.guest-stays-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.guest-stays-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.guest-stays-panel summary strong,
+.guest-stays-panel summary small,
+.guest-stays-panel summary em {
+  display: block;
+}
+
+.guest-stays-panel summary strong {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.guest-stays-panel summary small,
+.guest-stays-panel summary em {
+  color: var(--gray-500);
+  font-size: 0.88rem;
+  font-style: normal;
+}
+
+.guest-stay-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--cream);
+}
+
+.guest-stay-summary article {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-right: 1px solid var(--gray-100);
+}
+
+.guest-stay-summary article:last-child {
+  border-right: 0;
+}
+
+.guest-stay-summary span,
+.guest-stay-meta dt {
+  color: var(--gray-500);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.guest-stay-summary strong {
+  font-family: "Cormorant Garamond", serif;
+  font-size: 2.1rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.stay-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.stay-filter-button {
+  min-height: 2.35rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 0;
+  padding: 0.55rem 0.85rem;
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stay-filter-button span {
+  color: var(--gold-dark);
+}
+
+.stay-filter-button.active,
+.stay-filter-button:hover,
+.stay-filter-button:focus-visible {
+  border-color: var(--black);
+  background: var(--black);
+  color: var(--white);
+}
+
+.stay-filter-button.active span,
+.stay-filter-button:hover span,
+.stay-filter-button:focus-visible span {
+  color: var(--gold-light);
+}
+
+.guest-stay-list {
+  display: grid;
+}
+
+.guest-stay-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.guest-stay-card:last-child {
+  border-bottom: 0;
+}
+
+.guest-stay-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.guest-stay-card h3 {
+  margin: 0.15rem 0 0.2rem;
+  font-family: Inter, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.guest-stay-card p {
+  overflow-wrap: anywhere;
+}
+
+.stay-status-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--gray-300);
+  padding: 0.38rem 0.55rem;
+  color: var(--gray-700);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stay-status-badge.sent {
+  border-color: rgba(20, 120, 75, 0.35);
+  color: #14784b;
+}
+
+.stay-status-badge.error {
+  border-color: rgba(176, 42, 42, 0.35);
+  color: var(--danger);
+}
+
+.stay-status-badge.to-send {
+  border-color: var(--gold);
+  color: var(--gold-dark);
+}
+
+.guest-stay-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--gray-100);
+}
+
+.guest-stay-meta div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.9rem;
+  background: var(--cream);
+}
+
+.guest-stay-meta dd {
+  margin: 0;
+  color: var(--gray-900);
+  overflow-wrap: anywhere;
+}
+
+.guest-stay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.guest-stay-actions form {
+  margin: 0;
+}
+
+.empty-state {
+  padding: 1.2rem;
+}
+
 .form-help {
   color: var(--gray-500);
   font-size: 0.92rem;
@@ -2365,6 +2579,35 @@ td span {
 
   .primary-button,
   .secondary-button {
+    width: 100%;
+  }
+
+  .guest-stay-summary,
+  .guest-stay-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-stay-summary article {
+    border-right: 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .guest-stay-card-head {
+    display: grid;
+  }
+
+  .stay-status-badge {
+    width: fit-content;
+  }
+
+  .stay-filter-bar,
+  .guest-stay-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .stay-filter-button,
+  .guest-stay-actions form {
     width: 100%;
   }
 

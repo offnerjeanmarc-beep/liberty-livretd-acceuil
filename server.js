@@ -36,7 +36,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260617-drive-import-v37";
+const ASSET_VERSION = "20260618-lodgify-reservations-v38";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const GOOGLE_DRIVE_IMPORT_LIMIT = 40;
@@ -1223,7 +1223,8 @@ function requestOrigin(req) {
 }
 
 function stayUrl(stay, req) {
-  return `${requestOrigin(req)}/sejour/${encodeURIComponent(stay.secret_token)}`;
+  const origin = req ? requestOrigin(req) : BASE_URL;
+  return `${String(origin).replace(/\/$/, "")}/sejour/${encodeURIComponent(stay.secret_token)}`;
 }
 
 function formatDateFr(value) {
@@ -2966,22 +2967,96 @@ async function renderEditProperty(property, message = "") {
   const loyalty = parsedData.loyalty || {};
   const lodgifyReady = hasUsableLodgifyKey(property) && String(property.lodgify_property_id || "").trim();
   const lodgifyMessageTemplate = property.lodgify_message_template || DEFAULT_LODGIFY_MESSAGE_TEMPLATE;
-  const guestStays = await all("SELECT * FROM guest_stays WHERE property_id = ? ORDER BY arrival_date DESC, updated_at DESC LIMIT 12", [property.id]);
-  const guestStayRows = guestStays.map((stay) => `
-    <tr>
-      <td><strong>${escapeHtml(stay.guest_name || "Voyageur Liberty")}</strong><span>${escapeHtml(stay.guest_email || "")}</span></td>
-      <td>${escapeHtml(formatDateFr(stay.arrival_date))}<span>${escapeHtml(formatDateFr(stay.departure_date))}</span></td>
-      <td><a href="/sejour/${escapeHtml(stay.secret_token)}" target="_blank">/sejour/${escapeHtml(stay.secret_token)}</a></td>
-      <td>${escapeHtml(stay.message_status || "pas encore envoye")}</td>
-      <td>
-        ${stay.message_status === "envoye"
-          ? `<span>${escapeHtml(stay.message_sent_at || "Envoye")}</span>`
-          : `<form method="post" action="/admin/logements/${property.id}/guest-stays/${stay.id}/send-message">
-              ${csrfField("admin")}
-              <button class="secondary-button compact" type="submit"${lodgifyReady ? "" : " disabled"}>Envoyer message Lodgify</button>
-            </form>`}
-      </td>
-    </tr>`).join("");
+  const guestStays = await all("SELECT * FROM guest_stays WHERE property_id = ? ORDER BY arrival_date ASC, updated_at DESC", [property.id]);
+  const today = startOfToday();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const sortedGuestStays = [...guestStays].sort((a, b) => {
+    const dateA = parseDateOnly(a.arrival_date);
+    const dateB = parseDateOnly(b.arrival_date);
+    const timeA = dateA ? dateA.getTime() : Number.MAX_SAFE_INTEGER;
+    const timeB = dateB ? dateB.getTime() : Number.MAX_SAFE_INTEGER;
+    const futureA = timeA >= today.getTime() ? 0 : 1;
+    const futureB = timeB >= today.getTime() ? 0 : 1;
+    if (futureA !== futureB) return futureA - futureB;
+    return futureA === 0 ? timeA - timeB : timeB - timeA;
+  });
+  const stayStatus = (stay) => String(stay.message_status || "pas encore envoye").trim().toLowerCase();
+  const stayIsSent = (stay) => stayStatus(stay) === "envoye";
+  const stayIsError = (stay) => stayStatus(stay) === "erreur";
+  const stayIsToSend = (stay) => !stayIsSent(stay);
+  const stayIsNextWeek = (stay) => {
+    const date = parseDateOnly(stay.arrival_date);
+    if (!date) return false;
+    const diff = date.getTime() - today.getTime();
+    return diff >= 0 && diff <= 7 * dayMs;
+  };
+  const stayCounts = {
+    total: sortedGuestStays.length,
+    toSend: sortedGuestStays.filter(stayIsToSend).length,
+    sent: sortedGuestStays.filter(stayIsSent).length,
+    error: sortedGuestStays.filter(stayIsError).length,
+    nextWeek: sortedGuestStays.filter(stayIsNextWeek).length,
+  };
+  const defaultStayFilter = stayCounts.toSend ? "to-send" : "all";
+  const stayFilterButton = (filter, label, count) => `<button class="stay-filter-button${filter === defaultStayFilter ? " active" : ""}" type="button" data-stay-filter="${escapeHtml(filter)}">${escapeHtml(label)} <span>${count}</span></button>`;
+  const guestStayCards = sortedGuestStays.map((stay) => {
+    const filterStatus = stayIsError(stay) ? "error" : stayIsSent(stay) ? "sent" : "to-send";
+    const initiallyVisible = defaultStayFilter === "all" || filterStatus === defaultStayFilter;
+    const publicUrl = stayUrl(stay);
+    const copyMessage = renderStayMessage(lodgifyMessageTemplate, stay, property).trim();
+    const sentAt = stay.message_sent_at ? `Envoyé le ${formatDateFr(stay.message_sent_at)}` : "Message envoyé";
+    const actionLabel = stayIsSent(stay) ? "Renvoyer" : stayIsError(stay) ? "Réessayer" : "Envoyer Lodgify";
+    const statusLabel = stayIsSent(stay) ? "envoyé" : stayIsError(stay) ? "erreur" : "à envoyer";
+    return `<article class="guest-stay-card" data-message-filter="${escapeHtml(filterStatus)}" data-next-week="${stayIsNextWeek(stay) ? "true" : "false"}"${initiallyVisible ? "" : " hidden"}>
+      <div class="guest-stay-card-head">
+        <div>
+          <p class="eyebrow">${escapeHtml(stay.source || "lodgify")}</p>
+          <h3>${escapeHtml(stay.guest_name || "Voyageur Liberty")}</h3>
+          <p>${escapeHtml(stay.guest_email || "Email non renseigné")}</p>
+        </div>
+        <span class="stay-status-badge ${escapeHtml(filterStatus)}">${escapeHtml(statusLabel)}</span>
+      </div>
+      <dl class="guest-stay-meta">
+        <div><dt>Arrivée</dt><dd>${escapeHtml(formatDateFr(stay.arrival_date) || "-")}</dd></div>
+        <div><dt>Départ</dt><dd>${escapeHtml(formatDateFr(stay.departure_date) || "-")}</dd></div>
+        <div><dt>Lien</dt><dd><a href="/sejour/${escapeHtml(stay.secret_token)}" target="_blank">/sejour/${escapeHtml(stay.secret_token)}</a></dd></div>
+        <div><dt>Statut</dt><dd>${stayIsSent(stay) ? escapeHtml(sentAt) : escapeHtml(statusLabel)}</dd></div>
+      </dl>
+      <div class="guest-stay-actions">
+        <a class="secondary-button compact" href="/sejour/${escapeHtml(stay.secret_token)}" target="_blank">Ouvrir</a>
+        <button class="secondary-button compact" type="button" data-copy-text="${escapeHtml(publicUrl)}">Copier le lien</button>
+        <button class="secondary-button compact" type="button" data-copy-message="${escapeHtml(copyMessage)}">Copier le message</button>
+        <form method="post" action="/admin/logements/${property.id}/guest-stays/${stay.id}/send-message">
+          ${csrfField("admin")}
+          <button class="primary-button compact" type="submit"${lodgifyReady ? "" : " disabled"}${stayIsSent(stay) ? ` onclick="return confirm('Renvoyer le message Lodgify à ce voyageur ?');"` : ""}>${escapeHtml(actionLabel)}</button>
+        </form>
+      </div>
+    </article>`;
+  }).join("");
+  const lodgifyReservationsScripts = `<script>
+    document.addEventListener("click", async (event) => {
+      const copyButton = event.target.closest("[data-copy-text], [data-copy-message]");
+      if (copyButton) {
+        const text = copyButton.dataset.copyText || copyButton.dataset.copyMessage || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          const original = copyButton.textContent;
+          copyButton.textContent = "Copié";
+          setTimeout(() => { copyButton.textContent = original; }, 1400);
+        } catch {
+          window.prompt("Copiez le contenu :", text);
+        }
+      }
+      const filterButton = event.target.closest("[data-stay-filter]");
+      if (!filterButton) return;
+      const filter = filterButton.dataset.stayFilter;
+      document.querySelectorAll("[data-stay-filter]").forEach((button) => button.classList.toggle("active", button === filterButton));
+      document.querySelectorAll(".guest-stay-card").forEach((card) => {
+        const visible = filter === "all" || card.dataset.messageFilter === filter || (filter === "next-week" && card.dataset.nextWeek === "true");
+        card.hidden = !visible;
+      });
+    });
+  </script>`;
   const translationRows = await all("SELECT lang, status, updated_at, translated_json FROM property_translations WHERE property_id = ? ORDER BY lang", [property.id]);
   const translationMap = Object.fromEntries(translationRows.map((row) => [row.lang, { ...row, translated: json(row.translated_json, {}) }]));
   const canGenerateTranslations = hasUsableOpenAIKey(property);
@@ -3005,6 +3080,7 @@ async function renderEditProperty(property, message = "") {
   return layout({
     title: `Modifier ${property.name} | Administration Liberty`,
     admin: true,
+    scripts: lodgifyReservationsScripts,
     body: `<div class="admin-shell">
       <header class="admin-topbar">
         <a class="brand" href="/admin"><span>Groupe Liberty</span><strong>Administration</strong></a>
@@ -3061,11 +3137,33 @@ async function renderEditProperty(property, message = "") {
             <p><strong>Dernière synchro :</strong> ${escapeHtml(property.lodgify_last_sync_at || "Jamais")}</p>
             <p>${escapeHtml(property.lodgify_sync_status || "Aucun résultat de synchronisation pour le moment.")}</p>
           </div>
-          <form method="post" action="/admin/logements/${property.id}/lodgify/sync">
+          <form class="lodgify-sync-action" method="post" action="/admin/logements/${property.id}/lodgify/sync">
             ${csrfField("admin")}
             <button class="primary-button compact" type="submit"${lodgifyReady ? "" : " disabled"}>Synchroniser maintenant</button>
           </form>
-          <div class="table-wrap"><table><thead><tr><th>Voyageur</th><th>Dates</th><th>Lien secret</th><th>Message</th><th>Action</th></tr></thead><tbody>${guestStayRows || `<tr><td colspan="5">Aucune fiche séjour synchronisée.</td></tr>`}</tbody></table></div>
+          <details class="guest-stays-panel" open>
+            <summary>
+              <span>
+                <strong>Réservations synchronisées</strong>
+                <small>Triées par arrivée la plus proche, avec actions manuelles.</small>
+              </span>
+              <em>${stayCounts.total} séjour(s)</em>
+            </summary>
+            <div class="guest-stay-summary">
+              <article><span>À envoyer</span><strong>${stayCounts.toSend}</strong></article>
+              <article><span>Envoyées</span><strong>${stayCounts.sent}</strong></article>
+              <article><span>Erreur</span><strong>${stayCounts.error}</strong></article>
+              <article><span>7 prochains jours</span><strong>${stayCounts.nextWeek}</strong></article>
+            </div>
+            <div class="stay-filter-bar" aria-label="Filtrer les réservations">
+              ${stayFilterButton("to-send", "À envoyer", stayCounts.toSend)}
+              ${stayFilterButton("sent", "Envoyées", stayCounts.sent)}
+              ${stayFilterButton("error", "Erreur", stayCounts.error)}
+              ${stayFilterButton("next-week", "Arrivées 7 jours", stayCounts.nextWeek)}
+              ${stayFilterButton("all", "Toutes", stayCounts.total)}
+            </div>
+            <div class="guest-stay-list">${guestStayCards || `<p class="empty-state">Aucune fiche séjour synchronisée.</p>`}</div>
+          </details>
         </section>
         <form class="admin-form edit-form" method="post" action="/admin/logements/${property.id}">
           ${csrfField("admin")}
