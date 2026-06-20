@@ -36,7 +36,7 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260618-lodgify-reservations-v38";
+const ASSET_VERSION = "20260620-admin-cleanup-v39";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const GOOGLE_DRIVE_IMPORT_LIMIT = 40;
@@ -3059,19 +3059,12 @@ async function renderEditProperty(property, message = "") {
   </script>`;
   const translationRows = await all("SELECT lang, status, updated_at, translated_json FROM property_translations WHERE property_id = ? ORDER BY lang", [property.id]);
   const translationMap = Object.fromEntries(translationRows.map((row) => [row.lang, { ...row, translated: json(row.translated_json, {}) }]));
-  const canGenerateTranslations = hasUsableOpenAIKey(property);
   const translationStatusRows = TARGET_TRANSLATION_LANGUAGES.map((language) => {
     const row = translationMap[language.code];
     return `<tr>
       <td><strong>${escapeHtml(language.label)}</strong><span>${escapeHtml(language.code)}</span></td>
-      <td>${escapeHtml(row?.status || "à générer")}</td>
+      <td>${escapeHtml(row?.status || "à compléter")}</td>
       <td>${escapeHtml(row?.updated_at || "-")}</td>
-      <td>
-        <form method="post" action="/admin/logements/${property.id}/translations/generate/${encodeURIComponent(language.code)}">
-          ${csrfField("admin")}
-          <button class="secondary-button compact" type="submit"${canGenerateTranslations ? "" : " disabled"}>${row ? "Regénérer" : "Générer"}</button>
-        </form>
-      </td>
     </tr>`;
   }).join("");
   const translationEditors = TARGET_TRANSLATION_LANGUAGES
@@ -3124,10 +3117,10 @@ async function renderEditProperty(property, message = "") {
           <div class="admin-photo-grid">${arrivalPhotoPreview || `<p>Aucune photo d'arrivée pour le moment.</p>`}</div>
         </section>
         <section class="admin-panel">
-          <div class="panel-title"><h2>Traductions voyageurs</h2><p>Le français reste la source admin. Vous pouvez modifier chaque langue manuellement, sans coût IA. Le bouton de génération automatique reste optionnel.</p></div>
+          <div class="panel-title"><h2>Traductions voyageurs</h2><p>Le français reste la source admin. Vous modifiez chaque langue manuellement, sans coût IA.</p></div>
           <p class="form-help">Ouvrez une langue, corrigez les champs utiles, puis enregistrez. “Copier depuis le français” remplit la langue avec la source française pour démarrer plus vite.</p>
-          <p class="${canGenerateTranslations ? "success-message" : "warning-message"}">${canGenerateTranslations ? "Option IA disponible : générez une langue à la fois si besoin." : "Mode manuel actif : aucune clé OpenAI nécessaire pour modifier les traductions."}</p>
-          <div class="table-wrap"><table><thead><tr><th>Langue</th><th>Statut</th><th>Dernière mise à jour</th><th>Option IA</th></tr></thead><tbody>${translationStatusRows}</tbody></table></div>
+          <p class="warning-message">Mode manuel actif : aucune génération IA n'est proposée sur cette page.</p>
+          <div class="table-wrap"><table><thead><tr><th>Langue</th><th>Statut</th><th>Dernière mise à jour</th></tr></thead><tbody>${translationStatusRows}</tbody></table></div>
           <div class="translation-editor-list">${translationEditors}</div>
         </section>
         <section class="admin-panel">
@@ -3333,47 +3326,6 @@ Règles obligatoires :
   return extractOpenAIText(result) || localAssistantReply(property, message);
 }
 
-function extractJsonObject(text) {
-  const value = String(text || "").trim();
-  try {
-    return JSON.parse(value);
-  } catch {
-    const start = value.indexOf("{");
-    const end = value.lastIndexOf("}");
-    if (start !== -1 && end > start) return JSON.parse(value.slice(start, end + 1));
-    throw new Error("Réponse de traduction invalide.");
-  }
-}
-
-async function generatePropertyTranslation(property, language) {
-  if (!hasUsableOpenAIKey(property)) throw new Error("Clé OpenAI manquante pour générer les traductions.");
-  const source = translationSource(property);
-  const instructions = `You are a professional hospitality translator for Conciergerie Liberty.
-Translate the JSON values from French to ${language.name}.
-Return valid JSON only, with exactly the same object structure and keys.
-Do not translate JSON keys.
-Do not invent, summarize, remove, or add content.
-Preserve codes, URLs, Wi-Fi names, passwords, phone numbers, dates, times, prices, addresses, placeholders, and proper nouns.
-Translate natural-language text only. Empty strings must remain empty strings.`;
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${property.openai_api_key}`,
-    },
-    body: JSON.stringify({
-      model: property.openai_model || DEFAULT_OPENAI_MODEL,
-      instructions,
-      input: JSON.stringify(source),
-      store: false,
-      max_output_tokens: 7000,
-    }),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result?.error?.message || "Erreur OpenAI traduction");
-  return extractJsonObject(extractOpenAIText(result));
-}
-
 async function savePropertyTranslation(propertyId, language, translated, status = "generated") {
   const existing = await get("SELECT id FROM property_translations WHERE property_id = ? AND lang = ?", [propertyId, language.code]);
   const timestamp = now();
@@ -3394,20 +3346,6 @@ async function savePropertyTranslation(propertyId, language, translated, status 
     timestamp,
     timestamp,
   ]);
-}
-
-async function generateAllPropertyTranslations(property) {
-  const result = { generated: 0, failed: [] };
-  for (const language of TARGET_TRANSLATION_LANGUAGES) {
-    try {
-      const translated = await generatePropertyTranslation(property, language);
-      await savePropertyTranslation(property.id, language, translated);
-      result.generated += 1;
-    } catch (error) {
-      result.failed.push(`${language.short}: ${error.message}`);
-    }
-  }
-  return result;
 }
 
 async function handleRequest(req, res) {
@@ -3812,26 +3750,6 @@ async function handleRequest(req, res) {
       ? `Source française copiée dans ${language.label}.`
       : `Traduction ${language.label} enregistrée.`;
     return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(message)}#traduction-${encodeURIComponent(language.code)}`);
-  }
-
-  const translationsGenerateMatch = pathname.match(/^\/admin\/logements\/(\d+)\/translations\/generate\/([^/]+)$/);
-  if (translationsGenerateMatch && !isAdminAuthenticated(req)) return redirect(res, "/admin");
-  if (translationsGenerateMatch && req.method === "POST") {
-    const property = await get("SELECT * FROM properties WHERE id = ?", [Number(translationsGenerateMatch[1])]);
-    if (!property) return send(res, 404, "Logement introuvable");
-    const language = languageByCode(translationsGenerateMatch[2]);
-    if (!language || language.code === "fr") return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent("Langue de traduction invalide.")}`);
-    const form = await readForm(req);
-    if (!verifyCsrf(form.csrf, "admin")) {
-      return send(res, 403, await renderEditProperty(property, "Session expiree. Rechargez la page."));
-    }
-    try {
-      const translated = await generatePropertyTranslation(property, language);
-      await savePropertyTranslation(property.id, language, translated);
-      return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`Traduction ${language.label} générée.`)}`);
-    } catch (error) {
-      return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`Traduction ${language.label} impossible : ${error.message}`)}`);
-    }
   }
 
   const editMatch = pathname.match(/^\/admin\/logements\/(\d+)$/);

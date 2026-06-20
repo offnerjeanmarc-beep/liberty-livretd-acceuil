@@ -2044,6 +2044,10 @@ select:focus {
   border-bottom: 1px solid var(--gray-100);
 }
 
+.guest-stay-card[hidden] {
+  display: none;
+}
+
 .guest-stay-card:last-child {
   border-bottom: 0;
 }
@@ -2267,37 +2271,43 @@ select:focus {
 
 .admin-photo-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: var(--gray-100);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  background: transparent;
 }
 
 .admin-photo-grid figure {
-  min-height: 150px;
-  aspect-ratio: 4 / 3;
-  padding-bottom: 6.8rem;
+  display: grid;
+  min-height: auto;
+  aspect-ratio: auto;
+  padding-bottom: 0;
+  border: 1px solid var(--gray-100);
+  background: var(--white);
+  overflow: visible;
 }
 
 .admin-photo-grid figcaption {
-  position: absolute;
-  inset: auto 0 6.8rem;
+  position: static;
   overflow: hidden;
-  padding: 0.45rem 0.55rem;
+  padding: 0.65rem 0.75rem;
   background: rgba(10, 10, 10, 0.72);
   color: var(--white);
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.admin-photo-grid img {
+  height: clamp(210px, 18vw, 320px);
+}
+
 .photo-admin-actions {
-  position: absolute;
-  inset: auto 0 0;
+  position: static;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.35rem;
-  padding: 0.45rem;
-  background: rgba(255, 255, 255, 0.94);
+  padding: 0.7rem;
+  background: var(--white);
 }
 
 .photo-admin-actions form:last-child {
