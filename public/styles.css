@@ -1880,6 +1880,11 @@ select:focus {
   gap: 0.8rem;
 }
 
+.grid-form label {
+  display: grid;
+  gap: 0.45rem;
+}
+
 .edit-form label {
   display: grid;
   gap: 0.45rem;

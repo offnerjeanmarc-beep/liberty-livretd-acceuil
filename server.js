@@ -2879,10 +2879,10 @@ async function renderAdmin(req, message = "") {
           <div class="panel-title"><h2>Créer un logement</h2><p>L'URL unique est générée depuis le nom si le slug est vide.</p></div>
           <form class="admin-form grid-form" method="post" action="/admin/logements">
             ${csrfField("admin")}
-            <input name="name" placeholder="Nom du logement" required />
-            <input name="city" placeholder="Ville" required />
-            <input name="slug" placeholder="slug-url-optionnel" />
-            <input name="password" placeholder="Mot de passe voyageur" required />
+            <label>Nom du logement<input name="name" placeholder="L'atelier des rêves" required /></label>
+            <label>Ville<input name="city" placeholder="Vollmunster" spellcheck="false" autocomplete="off" required /></label>
+            <label>Slug URL optionnel<input name="slug" placeholder="atelier-des-reves" spellcheck="false" autocomplete="off" /></label>
+            <label>Mot de passe voyageur<input name="password" placeholder="Code transmis au voyageur" required /></label>
             <button class="primary-button" type="submit">Créer l'espace</button>
           </form>
         </section>
@@ -3464,14 +3464,31 @@ async function handleRequest(req, res) {
     if (!isAdminAuthenticated(req)) return redirect(res, "/admin");
     const form = await readForm(req);
     if (!verifyCsrf(form.csrf, "admin")) return send(res, 403, await renderAdmin(req, "Session expirée. Rechargez la page."));
-    const slug = slugify(form.slug || form.name);
+    const name = String(form.name || "").trim();
+    const city = String(form.city || "").trim();
+    const password = String(form.password || "").trim();
+    const slug = slugify(form.slug || name);
+    if (!name || !city || !password) {
+      return send(res, 400, await renderAdmin(req, "Nom, ville et mot de passe voyageur sont obligatoires."));
+    }
+    if (!slug) {
+      return send(res, 400, await renderAdmin(req, "Impossible de générer l'URL du logement. Renseignez un slug simple, par exemple atelier-des-reves."));
+    }
     const data = defaultPropertyData();
-    await run(
-      `INSERT INTO properties (slug, name, city, traveler_password_hash, welcome, data_json, ai_instructions, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [slug, form.name, form.city, hashPassword(form.password), `Bienvenue dans votre espace voyageurs ${form.name}.`, JSON.stringify(data), "Instructions Assistant IA Liberty à compléter avant déploiement.", now(), now()]
-    );
-    return redirect(res, "/admin?message=Logement créé");
+    try {
+      await run(
+        `INSERT INTO properties (slug, name, city, traveler_password_hash, welcome, data_json, ai_instructions, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [slug, name, city, hashPassword(password), `Bienvenue dans votre espace voyageurs ${name}.`, JSON.stringify(data), "Instructions Assistant IA Liberty à compléter avant déploiement.", now(), now()]
+      );
+      return redirect(res, `/admin?message=${encodeURIComponent(`Logement créé : ${name}`)}`);
+    } catch (error) {
+      const duplicate = String(error.message || "").toLowerCase().includes("unique") || String(error.code || "").includes("DUP");
+      const errorMessage = duplicate
+        ? `Impossible de créer le logement : l'URL "${slug}" existe déjà. Renseignez un slug différent, par exemple ${slug}-vollmunster.`
+        : `Impossible de créer le logement : ${error.message || "erreur base de données"}`;
+      return send(res, 400, await renderAdmin(req, errorMessage));
+    }
   }
 
   const propertyDeleteMatch = pathname.match(/^\/admin\/logements\/(\d+)\/delete$/);
