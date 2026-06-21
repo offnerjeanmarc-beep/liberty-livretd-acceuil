@@ -12,6 +12,7 @@ const DB_PATH = path.join(DATA_DIR, "liberty.sqlite");
 const UPLOADS_DIR = path.join(ROOT, "assets", "uploads");
 const PORT = Number(process.env.PORT || 4173);
 const BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${PORT}`;
+const AUTOMATION_BASE_URL = process.env.AUTOMATION_BASE_URL || process.env.PUBLIC_BASE_URL || (BASE_URL.includes("127.0.0.1") || BASE_URL.includes("localhost") ? "https://sejour.groupe-liberty.com" : BASE_URL);
 const SESSION_SECRET = process.env.SESSION_SECRET || "local-liberty-dev-secret";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "change-me-before-production";
 const FORCE_HTTPS = process.env.FORCE_HTTPS === "true";
@@ -36,11 +37,14 @@ const SUPPORTED_LANGUAGES = [
   { code: "ar", label: "العربية", short: "عربي", dir: "rtl", name: "Arabic" },
 ];
 const TARGET_TRANSLATION_LANGUAGES = SUPPORTED_LANGUAGES.filter((language) => language.code !== "fr");
-const ASSET_VERSION = "20260620-admin-cleanup-v39";
+const ASSET_VERSION = "20260621-lodgify-auto-v40";
 const ADMIN_LOGIN_MAX_ATTEMPTS = 6;
 const ADMIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const GOOGLE_DRIVE_IMPORT_LIMIT = 40;
+const LODGIFY_AUTOMATION_INTERVAL_MS = Number(process.env.LODGIFY_AUTOMATION_INTERVAL_MS || 4 * 60 * 1000);
+const LODGIFY_AUTOMATION_ENABLED = process.env.LODGIFY_AUTOMATION_ENABLED !== "false";
 const adminLoginAttempts = new Map();
+let lodgifyAutomationRunning = false;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -1223,7 +1227,7 @@ function requestOrigin(req) {
 }
 
 function stayUrl(stay, req) {
-  const origin = req ? requestOrigin(req) : BASE_URL;
+  const origin = req ? requestOrigin(req) : AUTOMATION_BASE_URL;
   return `${String(origin).replace(/\/$/, "")}/sejour/${encodeURIComponent(stay.secret_token)}`;
 }
 
@@ -1285,6 +1289,37 @@ async function sendLodgifyBookingMessage(property, stay, req) {
     throw new Error(body?.message || body?.error || `Erreur Lodgify ${response.status}`);
   }
   return body;
+}
+
+function stayMessageStatus(stay) {
+  return String(stay?.message_status || "pas encore envoye").trim().toLowerCase();
+}
+
+function isStayFutureOrToday(stay) {
+  const arrival = parseDateOnly(stay?.arrival_date);
+  if (!arrival) return false;
+  return arrival.getTime() >= startOfToday().getTime();
+}
+
+function isStayAutoSendEligible(stay) {
+  const status = stayMessageStatus(stay);
+  return String(stay?.status || "active") === "active"
+    && isStayFutureOrToday(stay)
+    && ["", "pas encore envoye", "pas encore envoyé"].includes(status);
+}
+
+async function sendStayMessageAndMark(property, stay, req, { force = false } = {}) {
+  if (!force && !isStayAutoSendEligible(stay)) return { skipped: true };
+  if (!force && stayMessageStatus(stay) === "envoye") return { skipped: true };
+  await run("UPDATE guest_stays SET message_status = ?, updated_at = ? WHERE id = ?", ["envoi en cours", now(), stay.id]);
+  try {
+    await sendLodgifyBookingMessage(property, stay, req);
+    await run("UPDATE guest_stays SET message_status = ?, message_sent_at = ?, updated_at = ? WHERE id = ?", ["envoye", now(), now(), stay.id]);
+    return { sent: true };
+  } catch (error) {
+    await run("UPDATE guest_stays SET message_status = ?, updated_at = ? WHERE id = ?", ["erreur", now(), stay.id]);
+    throw error;
+  }
 }
 
 async function guestStayByToken(token) {
@@ -1451,6 +1486,59 @@ async function syncLodgifyReservations(property) {
   const status = `${result.matched} réservation(s) ${property.name} analysée(s) sur ${result.scanned} réservation(s) Lodgify scannée(s). Créées : ${result.created}. Mises à jour : ${result.updated}. Annulées : ${result.cancelled}.`;
   await run("UPDATE properties SET lodgify_last_sync_at = ?, lodgify_sync_status = ?, updated_at = ? WHERE id = ?", [now(), status, now(), property.id]);
   return { ...result, status };
+}
+
+async function sendPendingLodgifyMessages(property) {
+  const stays = await all(
+    `SELECT * FROM guest_stays
+     WHERE property_id = ? AND status = 'active'
+     ORDER BY arrival_date ASC, created_at ASC`,
+    [property.id],
+  );
+  const result = { sent: 0, skipped: 0, errors: 0 };
+  for (const stay of stays.filter(isStayAutoSendEligible)) {
+    try {
+      const sendResult = await sendStayMessageAndMark(property, stay);
+      if (sendResult.sent) result.sent += 1;
+      else result.skipped += 1;
+    } catch (error) {
+      result.errors += 1;
+      console.error(`Envoi Lodgify automatique impossible (${property.name}, séjour ${stay.id})`, error.message);
+    }
+  }
+  return result;
+}
+
+async function runLodgifyAutomation() {
+  if (!LODGIFY_AUTOMATION_ENABLED || lodgifyAutomationRunning) return;
+  lodgifyAutomationRunning = true;
+  try {
+    const properties = await all("SELECT * FROM properties WHERE status = 'active' AND lodgify_sync_enabled = 1 ORDER BY name");
+    for (const property of properties.filter((item) => hasUsableLodgifyKey(item) && String(item.lodgify_property_id || "").trim())) {
+      try {
+        const syncResult = await syncLodgifyReservations(property);
+        const sendResult = await sendPendingLodgifyMessages(property);
+        const status = `${syncResult.status} Envois automatiques : ${sendResult.sent} envoyé(s), ${sendResult.errors} erreur(s).`;
+        await run("UPDATE properties SET lodgify_sync_status = ?, updated_at = ? WHERE id = ?", [status, now(), property.id]);
+      } catch (error) {
+        await run("UPDATE properties SET lodgify_last_sync_at = ?, lodgify_sync_status = ?, updated_at = ? WHERE id = ?", [now(), `Automatisation Lodgify impossible : ${error.message}`, now(), property.id]);
+        console.error(`Automatisation Lodgify impossible (${property.name})`, error.message);
+      }
+    }
+  } finally {
+    lodgifyAutomationRunning = false;
+  }
+}
+
+function startLodgifyAutomation() {
+  if (!LODGIFY_AUTOMATION_ENABLED) {
+    console.log("Automatisation Lodgify désactivée.");
+    return;
+  }
+  const interval = Math.max(60 * 1000, LODGIFY_AUTOMATION_INTERVAL_MS);
+  setTimeout(() => runLodgifyAutomation().catch((error) => console.error("Automatisation Lodgify", error)), 15 * 1000);
+  setInterval(() => runLodgifyAutomation().catch((error) => console.error("Automatisation Lodgify", error)), interval);
+  console.log(`Automatisation Lodgify active toutes les ${Math.round(interval / 1000)} secondes.`);
 }
 
 function uniqueList(items) {
@@ -3127,6 +3215,7 @@ async function renderEditProperty(property, message = "") {
           <div class="panel-title"><h2>Synchronisation Lodgify</h2><p>Crée les fiches séjour personnalisées depuis les réservations confirmées du logement.</p></div>
           <div class="lodgify-status">
             <p class="${lodgifyReady ? "success-message" : "warning-message"}">${lodgifyReady ? "Connexion Lodgify prête côté serveur." : "Renseignez la clé API et l'ID logement, enregistrez, puis lancez la synchronisation."}</p>
+            <p><strong>Automatisation :</strong> ${LODGIFY_AUTOMATION_ENABLED ? `active toutes les ${Math.round(Math.max(60 * 1000, LODGIFY_AUTOMATION_INTERVAL_MS) / 60000)} minute(s) pour les logements activés.` : "désactivée côté serveur."}</p>
             <p><strong>Dernière synchro :</strong> ${escapeHtml(property.lodgify_last_sync_at || "Jamais")}</p>
             <p>${escapeHtml(property.lodgify_sync_status || "Aucun résultat de synchronisation pour le moment.")}</p>
           </div>
@@ -3702,7 +3791,8 @@ async function handleRequest(req, res) {
     }
     try {
       const result = await syncLodgifyReservations(property);
-      return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${result.status} Créées : ${result.created}. Mises à jour : ${result.updated}.`)}`);
+      const sendResult = await sendPendingLodgifyMessages(property);
+      return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`${result.status} Envois automatiques : ${sendResult.sent} envoyé(s), ${sendResult.errors} erreur(s).`)}`);
     } catch (error) {
       await run("UPDATE properties SET lodgify_last_sync_at = ?, lodgify_sync_status = ?, updated_at = ? WHERE id = ?", [now(), error.message || "Erreur Lodgify", now(), property.id]);
       return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`Synchronisation Lodgify impossible : ${error.message}`)}`);
@@ -3721,11 +3811,9 @@ async function handleRequest(req, res) {
       return send(res, 403, await renderEditProperty(property, "Session expiree. Rechargez la page."));
     }
     try {
-      await sendLodgifyBookingMessage(property, stay, req);
-      await run("UPDATE guest_stays SET message_status = ?, message_sent_at = ?, updated_at = ? WHERE id = ?", ["envoye", now(), now(), stay.id]);
+      await sendStayMessageAndMark(property, stay, req, { force: true });
       return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent("Message Lodgify envoyé.")}`);
     } catch (error) {
-      await run("UPDATE guest_stays SET message_status = ?, updated_at = ? WHERE id = ?", ["erreur", now(), stay.id]);
       return redirect(res, `/admin/logements/${property.id}?message=${encodeURIComponent(`Message Lodgify non envoyé : ${error.message}`)}`);
     }
   }
@@ -3997,6 +4085,7 @@ async function start() {
   const host = process.env.HOST || "127.0.0.1";
   server.listen(PORT, host, () => {
     console.log(`Espace voyageurs Liberty prêt: ${BASE_URL} (${db.dialect})`);
+    startLodgifyAutomation();
   });
 }
 
